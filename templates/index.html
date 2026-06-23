@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Home — dm-photo{% endblock %}
+
+{% block content %}
+  <h1>Welcome</h1>
+  {% match current_user %}
+    {% when Some with (user) %}
+      <p>Hello, <strong>{{ user.username }}</strong>!</p>
+      <p>Discord id: <code>{{ user.discord_id }}</code></p>
+      <p>Last login: <code>{{ user.last_login }}</code></p>
+      <p>
+        <button hx-get="/api/me" hx-target="#me-out" hx-swap="innerHTML">
+          Fetch /api/me
+        </button>
+      </p>
+      <pre id="me-out"></pre>
+
+      <h2>Discord DM</h2>
+      <p>
+        <button
+          hx-post="/api/dm/me"
+          hx-target="#dm-out"
+          hx-swap="innerHTML"
+          hx-disabled-elt="this"
+          hx-indicator="#dm-spinner">
+          Send me a message
+        </button>
+        <span id="dm-spinner" class="htmx-indicator">sending...</span>
+      </p>
+      <div id="dm-out"></div>
+    {% when None %}
+      <p>You are not logged in.</p>
+      <p><a class="button" href="/login">Login with Discord</a></p>
+  {% endmatch %}
+{% endblock %}
