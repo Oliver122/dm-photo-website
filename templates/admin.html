@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Admin — dm-photo{% endblock %}
+
+{% block content %}
+  <h1>Admin dashboard</h1>
+  <p>{{ users.len() }} user(s) registered.</p>
+
+  <table class="users">
+    <thead>
+      <tr>
+        <th>id</th>
+        <th>discord id</th>
+        <th>username</th>
+        <th>created</th>
+        <th>last login</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="users-body">
+      {% for u in users %}
+        <tr id="user-{{ u.id }}">
+          <td>{{ u.id }}</td>
+          <td><code>{{ u.discord_id }}</code></td>
+          <td>{{ u.username }}</td>
+          <td>{{ u.created_at }}</td>
+          <td>{{ u.last_login }}</td>
+          <td>
+            <button
+              class="danger"
+              hx-delete="/api/users/{{ u.id }}"
+              hx-confirm="Delete user {{ u.username }}?"
+              hx-target="#user-{{ u.id }}"
+              hx-swap="outerHTML">
+              delete
+            </button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post" action="/admin/logout" class="inline">
+    <button type="submit">End admin session</button>
+  </form>
+{% endblock %}
