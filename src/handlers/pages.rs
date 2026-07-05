@@ -15,15 +15,19 @@ use crate::{
         session::{ADMIN_KEY, AdminUser, AuthUser, OAUTH_STATE_KEY, USER_ID_KEY},
     },
     db,
-    models::User,
+    models::{Ticket, User},
     state::AppState,
 };
+
+use super::tickets;
 
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
     current_user: Option<User>,
     is_admin: bool,
+    tickets: Vec<Ticket>,
+    archived_tickets: Vec<Ticket>,
 }
 
 #[derive(Template)]
@@ -64,7 +68,17 @@ async fn is_admin_session(session: &Session) -> bool {
 pub async fn index(State(state): State<AppState>, session: Session) -> impl IntoResponse {
     let current_user = load_current_user(&state, &session).await;
     let is_admin = is_admin_session(&session).await;
-    IndexTemplate { current_user, is_admin }
+    let (archived_tickets, tickets) = match &current_user {
+        Some(user) => tickets::load_user_ticket_lists(&state.db, user.id).await,
+        None => (Vec::new(), Vec::new()),
+    };
+
+    IndexTemplate {
+        current_user,
+        is_admin,
+        tickets,
+        archived_tickets,
+    }
 }
 
 pub async fn login_page(State(state): State<AppState>, session: Session) -> impl IntoResponse {
