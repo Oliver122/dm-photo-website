@@ -1,6 +1,7 @@
 mod auth;
 mod config;
 mod db;
+mod dm_analog;
 mod discord_bot;
 mod handlers;
 mod models;

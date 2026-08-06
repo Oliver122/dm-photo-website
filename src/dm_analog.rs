@@ -1,0 +1,236 @@
+use std::path::Path;
+
+use serde::Deserialize;
+use thiserror::Error;
+use tokio::io::AsyncWriteExt;
+
+const API_BASE: &str = "https://api.cewe-myphotos.com/api/imageCD";
+const API_ACCESS_KEY: &str = "54a614716eb29ef3a3f004a6241e5e19";
+const CLIENT_VERSION: &str = "1.0.0";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Metadata {
+    pub lab_id: String,
+    pub order_ts: i64,
+    pub deleted_at_ts: i64,
+}
+
+#[derive(Debug, Error)]
+pub enum DmAnalogError {
+    #[error("Bestellnummer ungültig — Format: 123456-123456")]
+    InvalidOrderId,
+    #[error("Secure-ID ungültig — genau 8 Zeichen (Buchstaben und Ziffern)")]
+    InvalidSecureId,
+    #[error("Bestellnummer oder Secure-ID ist falsch")]
+    BadCredentials,
+    #[error("Download-Zeitraum abgelaufen — Fotos sind nicht mehr verfügbar")]
+    Expired,
+    #[error("Netzwerkfehler beim CEWE-Download: {0}")]
+    Network(#[from] reqwest::Error),
+    #[error("Dateifehler: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("CEWE-API-Fehler (HTTP {status}): {detail}")]
+    Api { status: u16, detail: String },
+}
+
+#[derive(Debug, Deserialize)]
+struct MetadataResponse {
+    #[serde(rename = "labId")]
+    lab_id: String,
+    #[serde(rename = "orderTs")]
+    order_ts: i64,
+    #[serde(rename = "deletedAtTs")]
+    deleted_at_ts: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiErrorBody {
+    code: Option<i32>,
+    message: Option<String>,
+}
+
+/// Order number must match `^\d{6}-\d{6}$`.
+pub fn validate_order_id(order: &str) -> Result<(), DmAnalogError> {
+    let bytes = order.as_bytes();
+    if bytes.len() != 13
+        || bytes[6] != b'-'
+        || !bytes[..6].iter().all(u8::is_ascii_digit)
+        || !bytes[7..].iter().all(u8::is_ascii_digit)
+    {
+        return Err(DmAnalogError::InvalidOrderId);
+    }
+    Ok(())
+}
+
+/// Secure-ID must be exactly 8 ASCII alphanumeric characters (case-sensitive).
+pub fn validate_secure_id(secure: &str) -> Result<(), DmAnalogError> {
+    if secure.len() != 8 || !secure.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(DmAnalogError::InvalidSecureId);
+    }
+    Ok(())
+}
+
+fn validate_credentials(order: &str, secure: &str) -> Result<(), DmAnalogError> {
+    validate_order_id(order)?;
+    validate_secure_id(secure)?;
+    Ok(())
+}
+
+fn metadata_url(order: &str, secure: &str) -> String {
+    format!("{API_BASE}/{order}/{secure}")
+}
+
+fn download_url(order: &str, secure: &str) -> String {
+    format!("{API_BASE}/{order}/{secure}/download")
+}
+
+fn api_get(http: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
+    http.get(url)
+        .header("apiAccessKey", API_ACCESS_KEY)
+        .header("clientVersion", CLIENT_VERSION)
+}
+
+fn map_api_error(status: u16, body: &str) -> DmAnalogError {
+    let parsed = serde_json::from_str::<ApiErrorBody>(body).ok();
+    let code = parsed.as_ref().and_then(|e| e.code);
+    let message = parsed
+        .and_then(|e| e.message)
+        .filter(|m| !m.is_empty())
+        .unwrap_or_else(|| body.to_string());
+
+    match (status, code) {
+        (404, Some(2)) | (404, None) => DmAnalogError::BadCredentials,
+        (400, Some(151)) => DmAnalogError::InvalidOrderId,
+        (401, Some(3)) => DmAnalogError::Api {
+            status,
+            detail: "API-Zugangsschlüssel abgelehnt — Konfiguration prüfen".into(),
+        },
+        _ => DmAnalogError::Api {
+            status,
+            detail: message,
+        },
+    }
+}
+
+fn check_expiry(deleted_at_ts: i64) -> Result<(), DmAnalogError> {
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    if now_ms > deleted_at_ts {
+        return Err(DmAnalogError::Expired);
+    }
+    Ok(())
+}
+
+/// Fetch order metadata from the CEWE imageCD API.
+pub async fn fetch_metadata(
+    http: &reqwest::Client,
+    order: &str,
+    secure: &str,
+) -> Result<Metadata, DmAnalogError> {
+    validate_credentials(order, secure)?;
+
+    let response = api_get(http, &metadata_url(order, secure))
+        .send()
+        .await?;
+    let status = response.status().as_u16();
+
+    if !response.status().is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(map_api_error(status, &body));
+    }
+
+    let parsed: MetadataResponse = response.json().await?;
+    check_expiry(parsed.deleted_at_ts)?;
+
+    Ok(Metadata {
+        lab_id: parsed.lab_id,
+        order_ts: parsed.order_ts,
+        deleted_at_ts: parsed.deleted_at_ts,
+    })
+}
+
+/// Download the analog photo ZIP to `dest_path`.
+pub async fn download_zip(
+    http: &reqwest::Client,
+    order: &str,
+    secure: &str,
+    dest_path: &Path,
+) -> Result<(), DmAnalogError> {
+    validate_credentials(order, secure)?;
+
+    let response = api_get(http, &download_url(order, secure))
+        .send()
+        .await?;
+    let status = response.status().as_u16();
+
+    if !response.status().is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(map_api_error(status, &body));
+    }
+
+    let mut file = tokio::fs::File::create(dest_path).await?;
+    let mut response = response;
+    while let Some(chunk) = response.chunk().await? {
+        file.write_all(&chunk).await?;
+    }
+    file.flush().await?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_order_id_accepts_dm_format() {
+        assert!(validate_order_id("544850-103396").is_ok());
+        assert!(validate_order_id("123456-123456").is_ok());
+    }
+
+    #[test]
+    fn validate_order_id_rejects_bad_formats() {
+        for bad in [
+            "",
+            "544850103396",
+            "54485-103396",
+            "5448500-103396",
+            "544850-10339",
+            "abcdef-103396",
+            "544850_103396",
+            "544850-103396-extra",
+        ] {
+            assert!(
+                matches!(validate_order_id(bad), Err(DmAnalogError::InvalidOrderId)),
+                "expected reject for {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_secure_id_accepts_alphanumeric_eight_chars() {
+        assert!(validate_secure_id("H5GGX3T5").is_ok());
+        assert!(validate_secure_id("a1b2c3d4").is_ok());
+        assert!(validate_secure_id("ABCD1234").is_ok());
+    }
+
+    #[test]
+    fn validate_secure_id_is_case_sensitive_length_eight() {
+        assert!(validate_secure_id("h5ggx3t5").is_ok(), "lowercase is valid alphanumeric");
+        assert!(matches!(
+            validate_secure_id("H5GGX3T"),
+            Err(DmAnalogError::InvalidSecureId)
+        ));
+        assert!(matches!(
+            validate_secure_id("H5GGX3T55"),
+            Err(DmAnalogError::InvalidSecureId)
+        ));
+        assert!(matches!(
+            validate_secure_id("H5GG-T55"),
+            Err(DmAnalogError::InvalidSecureId)
+        ));
+        assert!(matches!(
+            validate_secure_id("H5GG 3T5"),
+            Err(DmAnalogError::InvalidSecureId)
+        ));
+    }
+}
