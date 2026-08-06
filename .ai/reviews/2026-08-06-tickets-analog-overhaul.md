@@ -1,7 +1,7 @@
 # Plan — Tickets + Analog Integration Overhaul
 
 - **Date:** 2026-08-06
-- **Status:** in progress
+- **Status:** done (slices merged into parent)
 - **Parent branch:** `feat/dm-analog-ingest`
 
 ## Problem
