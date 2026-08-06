@@ -7,3 +7,4 @@
 .env.local
 *.log
 .DS_Store
+scripts/build-and-push.sh
