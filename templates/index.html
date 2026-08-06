@@ -101,6 +101,8 @@
             hx-swap="innerHTML">
             {% include "partials/analog_ingest_list.html" %}
           </div>
+          {# Outside the poll target so Vorschau survives list refresh #}
+          <div id="analog-preview-panel" class="analog-preview-panel" aria-live="polite"></div>
         </section>
 
         <details class="dev-panel">

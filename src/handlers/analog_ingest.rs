@@ -39,6 +39,9 @@ pub struct RotateForm {
 #[derive(Debug, Deserialize)]
 pub struct PreviewFileQuery {
     pub path: String,
+    /// Ignored; clients send `t=` for cache-busting after rotate.
+    #[serde(default)]
+    pub t: Option<String>,
 }
 
 #[derive(Template)]
@@ -52,6 +55,8 @@ struct IngestListTemplate {
 struct PreviewTemplate {
     job: AnalogIngestJob,
     images: Vec<PreviewImage>,
+    /// Cache-bust query for `<img src>` after rotate.
+    cache_bust: i64,
 }
 
 struct PreviewImage {
@@ -98,7 +103,7 @@ pub async fn create_ingest_job(
         Ok(Some(_)) => {
             return html_error(
                 StatusCode::CONFLICT,
-                "Dieser Auftrag wurde bereits erfolgreich importiert.",
+                "Dieser Auftrag wurde bereits importiert. Lösche den alten Eintrag, um erneut zu importieren.",
             );
         }
         Ok(None) => {}
@@ -154,6 +159,76 @@ pub async fn list_ingest_jobs(user: AuthUser, State(state): State<AppState>) -> 
             html_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Importliste konnte nicht geladen werden.",
+            )
+        }
+    }
+}
+
+async fn list_ingest_jobs_clearing_preview(user: AuthUser, state: AppState) -> Response {
+    match db::list_analog_ingest_jobs_for_user(&state.db, user.0.id).await {
+        Ok(jobs) => {
+            let list = IngestListTemplate { jobs }.render().unwrap_or_else(|_| {
+                r#"<p class="error">Importliste konnte nicht geladen werden.</p>"#.into()
+            });
+            Html(format!(
+                r#"{list}<div id="analog-preview-panel" class="analog-preview-panel" hx-swap-oob="innerHTML"></div>"#
+            ))
+            .into_response()
+        }
+        Err(err) => {
+            tracing::error!(?err, "failed to list ingest jobs");
+            html_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Importliste konnte nicht geladen werden.",
+            )
+        }
+    }
+}
+
+pub async fn delete_ingest_job(
+    user: AuthUser,
+    State(state): State<AppState>,
+    Path(job_id): Path<i64>,
+) -> Response {
+    let existing = match db::get_analog_ingest_job(&state.db, job_id).await {
+        Ok(Some(job)) if job.user_id == user.0.id => job,
+        Ok(Some(_)) | Ok(None) => {
+            return html_error(StatusCode::NOT_FOUND, "Import-Auftrag nicht gefunden.");
+        }
+        Err(err) => {
+            tracing::error!(?err, job_id, "failed to load ingest job for delete");
+            return html_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Import konnte nicht gelöscht werden.",
+            );
+        }
+    };
+
+    if !existing.can_delete() {
+        return html_error(
+            StatusCode::CONFLICT,
+            "Import läuft noch — bitte warten oder später löschen.",
+        );
+    }
+
+    match db::delete_analog_ingest_job_for_user(&state.db, job_id, user.0.id).await {
+        Ok(true) => {
+            let work_dir = job_work_dir(&state.config.analog_ingest_dir, job_id);
+            if let Err(err) = remove_job_workdir(&work_dir).await {
+                tracing::warn!(job_id, ?err, "failed to remove ingest workdir after delete");
+            }
+            tracing::info!(job_id, user_id = user.0.id, "analog ingest job deleted");
+            list_ingest_jobs(user, State(state)).await
+        }
+        Ok(false) => html_error(
+            StatusCode::CONFLICT,
+            "Import läuft noch — bitte warten oder später löschen.",
+        ),
+        Err(err) => {
+            tracing::error!(?err, job_id, "failed to delete ingest job");
+            html_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Import konnte nicht gelöscht werden.",
             )
         }
     }
@@ -269,7 +344,7 @@ pub async fn preview_confirm(
     match db::confirm_analog_ingest_preview_for_user(&state.db, job_id, user.0.id).await {
         Ok(true) => {
             tracing::info!(job_id, user_id = user.0.id, "analog ingest preview confirmed");
-            list_ingest_jobs(user, State(state)).await
+            list_ingest_jobs_clearing_preview(user, state).await
         }
         Ok(false) => html_error(
             StatusCode::CONFLICT,
@@ -297,7 +372,7 @@ pub async fn preview_cancel(
                 tracing::warn!(job_id, ?err, "failed to remove preview workdir after cancel");
             }
             tracing::info!(job_id, user_id = user.0.id, "analog ingest preview cancelled");
-            list_ingest_jobs(user, State(state)).await
+            list_ingest_jobs_clearing_preview(user, state).await
         }
         Ok(false) => html_error(
             StatusCode::CONFLICT,
@@ -374,7 +449,17 @@ async fn render_preview(state: &AppState, job: AnalogIngestJob) -> Response {
         })
         .collect();
 
-    PreviewTemplate { job, images }.into_response()
+    let cache_bust = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+
+    PreviewTemplate {
+        job,
+        images,
+        cache_bust,
+    }
+    .into_response()
 }
 
 fn html_error(status: StatusCode, message: &str) -> Response {

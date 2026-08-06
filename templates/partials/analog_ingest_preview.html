@@ -1,7 +1,8 @@
 <section class="ingest-preview" id="ingest-preview-{{ job.id }}">
   <header class="ingest-preview-head">
     <h3>Vorschau — <code>{{ job.order_number }}</code></h3>
-    <p class="muted">Bilder drehen, dann Import bestätigen. {{ images.len() }} Datei(en).</p>
+    <p class="muted">Drehen, dann Import bestätigen. {{ images.len() }} Datei(en).</p>
+    <p id="preview-feedback" class="preview-feedback muted" aria-live="polite"></p>
   </header>
 
   {% if images.is_empty() %}
@@ -9,34 +10,42 @@
   {% else %}
     <div class="ingest-preview-grid">
       {% for image in images %}
-        <article class="ingest-preview-card" id="preview-card-{{ job.id }}-{{ loop.index }}">
+        <article class="ingest-preview-card">
           <img
             class="ingest-preview-img"
-            src="/api/analog/ingest/{{ job.id }}/preview/file?path={{ image.relative_path }}"
+            src="/api/analog/ingest/{{ job.id }}/preview/file?path={{ image.relative_path }}&t={{ cache_bust }}"
             alt="{{ image.file_name }}"
             loading="lazy" />
           <p class="ingest-preview-name">{{ image.file_name }}</p>
           <div class="ingest-preview-actions">
-            <button
-              type="button"
-              class="secondary touch-target"
+            <form
+              class="inline-rotate"
               hx-post="/api/analog/ingest/{{ job.id }}/preview/rotate"
-              hx-vals='{"file": "{{ image.relative_path }}", "direction": "ccw"}'
               hx-target="#analog-preview-panel"
               hx-swap="innerHTML"
-              aria-label="90° gegen den Uhrzeigersinn drehen">
-              ↺ Drehen
-            </button>
-            <button
-              type="button"
-              class="secondary touch-target"
+              hx-disabled-elt="find button"
+              hx-indicator="find .rotate-spinner">
+              <input type="hidden" name="file" value="{{ image.relative_path }}" />
+              <input type="hidden" name="direction" value="ccw" />
+              <button type="submit" class="secondary touch-target" aria-label="90° gegen den Uhrzeigersinn">
+                ↺ Links
+              </button>
+              <span class="rotate-spinner htmx-indicator" aria-hidden="true">…</span>
+            </form>
+            <form
+              class="inline-rotate"
               hx-post="/api/analog/ingest/{{ job.id }}/preview/rotate"
-              hx-vals='{"file": "{{ image.relative_path }}", "direction": "cw"}'
               hx-target="#analog-preview-panel"
               hx-swap="innerHTML"
-              aria-label="90° im Uhrzeigersinn drehen">
-              ↻ Drehen
-            </button>
+              hx-disabled-elt="find button"
+              hx-indicator="find .rotate-spinner">
+              <input type="hidden" name="file" value="{{ image.relative_path }}" />
+              <input type="hidden" name="direction" value="cw" />
+              <button type="submit" class="secondary touch-target" aria-label="90° im Uhrzeigersinn">
+                ↻ Rechts
+              </button>
+              <span class="rotate-spinner htmx-indicator" aria-hidden="true">…</span>
+            </form>
           </div>
         </article>
       {% endfor %}

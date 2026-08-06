@@ -71,6 +71,10 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
             post(handlers::analog_ingest::create_ingest_job),
         )
         .route(
+            "/api/analog/ingest/:id",
+            delete(handlers::analog_ingest::delete_ingest_job),
+        )
+        .route(
             "/api/analog/ingest/:id/preview",
             get(handlers::analog_ingest::preview_gallery),
         )

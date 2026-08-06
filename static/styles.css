@@ -708,6 +708,35 @@ table.users th {
   gap: 0.5rem;
 }
 
+.analog-preview-panel:empty {
+  display: none;
+}
+
+.analog-preview-panel:not(:empty) {
+  margin-top: 1rem;
+}
+
+.preview-feedback:empty {
+  display: none;
+}
+
+.inline-rotate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.rotate-spinner.htmx-indicator {
+  opacity: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.htmx-request .rotate-spinner.htmx-indicator,
+.rotate-spinner.htmx-indicator.htmx-request {
+  opacity: 1;
+}
+
 .ingest-preview-footer {
   display: flex;
   flex-wrap: wrap;

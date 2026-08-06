@@ -66,6 +66,18 @@ impl AnalogIngestJob {
         is_terminal_analog_ingest_status(&self.status)
     }
 
+    /// Jobs that are safe to remove so the order can be imported again.
+    /// Active download/label/upload steps are blocked to avoid racing the worker.
+    pub fn can_delete(&self) -> bool {
+        matches!(
+            self.status.as_str(),
+            ANALOG_INGEST_STATUS_QUEUED
+                | ANALOG_INGEST_STATUS_PREVIEW
+                | ANALOG_INGEST_STATUS_DONE
+                | ANALOG_INGEST_STATUS_FAILED
+        )
+    }
+
     pub fn status_label_de(&self) -> &'static str {
         match self.status.as_str() {
             ANALOG_INGEST_STATUS_QUEUED => "Warteschlange",

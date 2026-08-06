@@ -22,6 +22,7 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 | POST | `/api/dm/me` | user | api | Send test Discord DM |
 | GET | `/api/analog/ingest` | user | analog_ingest | HTMX partial: analog ingest job list |
 | POST | `/api/analog/ingest` | user | analog_ingest | Queue analog ingest job |
+| DELETE | `/api/analog/ingest/:id` | user | analog_ingest | Delete job (queued/preview/done/failed) + workdir; allows re-import |
 | GET | `/api/analog/ingest/:id/preview` | user | analog_ingest | HTMX partial: preview gallery (owner; job status `preview`) |
 | GET | `/api/analog/ingest/:id/preview/file?path=…` | user | analog_ingest | Preview image bytes (owner; path under workdir) |
 | POST | `/api/analog/ingest/:id/preview/rotate` | user | analog_ingest | Rotate one image 90° CW/CCW (`file`, `direction`) |

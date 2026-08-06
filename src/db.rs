@@ -673,6 +673,32 @@ pub async fn find_done_analog_ingest_job(
     Ok(job)
 }
 
+/// Delete an ingest job owned by `user_id` when status allows redo/delete.
+pub async fn delete_analog_ingest_job_for_user(
+    pool: &SqlitePool,
+    id: i64,
+    user_id: i64,
+) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        DELETE FROM analog_ingest_jobs
+        WHERE id = ?1
+          AND user_id = ?2
+          AND status IN (?3, ?4, ?5, ?6)
+        "#,
+    )
+    .bind(id)
+    .bind(user_id)
+    .bind(ANALOG_INGEST_STATUS_QUEUED)
+    .bind(ANALOG_INGEST_STATUS_PREVIEW)
+    .bind(ANALOG_INGEST_STATUS_DONE)
+    .bind(ANALOG_INGEST_STATUS_FAILED)
+    .execute(pool)
+    .await
+    .context("failed to delete analog ingest job")?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// Alias for UI slice naming (same as `confirm_analog_ingest_job`).
 pub async fn confirm_analog_ingest_preview_for_user(
     pool: &SqlitePool,
@@ -843,5 +869,99 @@ mod tests {
         assert_eq!(updated.status, ANALOG_INGEST_STATUS_FAILED);
         assert!(updated.secure_id.is_none());
         assert_eq!(updated.error_text.as_deref(), Some("Abgebrochen"));
+    }
+
+    #[tokio::test]
+    async fn analog_ingest_delete_done_allows_reimport() {
+        let (_dir, pool) = test_pool().await;
+        let user = upsert_discord_user(&pool, "790", "delete-user")
+            .await
+            .expect("user");
+
+        let job = create_analog_ingest_job(
+            &pool,
+            user.id,
+            "544850-103399",
+            "H5GGX3T8",
+            "Nikon FM2",
+            None,
+        )
+        .await
+        .expect("create job");
+
+        update_analog_ingest_job_status(&pool, job.id, ANALOG_INGEST_STATUS_DONE, None)
+            .await
+            .unwrap();
+        assert!(
+            find_done_analog_ingest_job(&pool, user.id, "544850-103399")
+                .await
+                .unwrap()
+                .is_some()
+        );
+
+        assert!(
+            delete_analog_ingest_job_for_user(&pool, job.id, user.id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            get_analog_ingest_job(&pool, job.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            find_done_analog_ingest_job(&pool, user.id, "544850-103399")
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        let again = create_analog_ingest_job(
+            &pool,
+            user.id,
+            "544850-103399",
+            "H5GGX3T9",
+            "Nikon FM2",
+            None,
+        )
+        .await
+        .expect("recreate after delete");
+        assert_ne!(again.id, job.id);
+    }
+
+    #[tokio::test]
+    async fn analog_ingest_delete_rejects_uploading() {
+        let (_dir, pool) = test_pool().await;
+        let user = upsert_discord_user(&pool, "791", "busy-user")
+            .await
+            .expect("user");
+
+        let job = create_analog_ingest_job(
+            &pool,
+            user.id,
+            "544850-103400",
+            "H5GGX3TA",
+            "Olympus",
+            None,
+        )
+        .await
+        .expect("create job");
+
+        update_analog_ingest_job_status(&pool, job.id, ANALOG_INGEST_STATUS_UPLOADING, None)
+            .await
+            .unwrap();
+
+        assert!(
+            !delete_analog_ingest_job_for_user(&pool, job.id, user.id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            get_analog_ingest_job(&pool, job.id)
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 }

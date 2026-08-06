@@ -11,6 +11,7 @@
         <th>Kamera</th>
         <th>Status</th>
         <th>Aktualisiert</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -37,9 +38,21 @@
             {% endif %}
           </td>
           <td>{{ job.updated_at.format("%d.%m.%Y %H:%M") }}</td>
+          <td class="ingest-actions">
+            {% if job.can_delete() %}
+              <button
+                type="button"
+                class="ghost small touch-target"
+                hx-delete="/api/analog/ingest/{{ job.id }}"
+                hx-confirm="Import {{ job.order_number }} löschen? Danach kannst du erneut importieren."
+                hx-target="#analog-ingest-list"
+                hx-swap="innerHTML">
+                Löschen
+              </button>
+            {% endif %}
+          </td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
 {% endif %}
-<div id="analog-preview-panel"></div>
