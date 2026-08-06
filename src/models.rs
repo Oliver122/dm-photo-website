@@ -58,6 +58,14 @@ impl Ticket {
             None => false,
         }
     }
+
+    pub fn has_camera(&self, camera_id: &i64) -> bool {
+        self.camera_id == Some(*camera_id)
+    }
+
+    pub fn has_lens(&self, lens_id: &i64) -> bool {
+        self.lens_id == Some(*lens_id)
+    }
 }
 
 pub const ANALOG_INGEST_STATUS_QUEUED: &str = "queued";
@@ -85,7 +93,43 @@ pub struct AnalogIngestJob {
     pub film_iso: Option<i32>,
 }
 
+fn format_lens_focal_mm(focal_mm: f64) -> String {
+    if focal_mm.fract().abs() < f64::EPSILON {
+        format!("{:.0}", focal_mm)
+    } else {
+        format!("{focal_mm}")
+    }
+}
+
+fn format_lens_aperture(aperture: f64) -> String {
+    if (aperture * 10.0).fract().abs() < f64::EPSILON {
+        format!("{:.1}", aperture)
+    } else {
+        format!("{aperture}")
+    }
+}
+
 impl AnalogIngestJob {
+    /// Compact gear summary for job lists, e.g. `Canon AE-1 · ISO 400 · 50mm f/2.4`.
+    pub fn gear_line(&self, lens: Option<&UserLens>) -> Option<String> {
+        if self.film_iso.is_none() && lens.is_none() {
+            return None;
+        }
+
+        let mut parts = vec![self.camera_label.clone()];
+        if let Some(iso) = self.film_iso {
+            parts.push(format!("ISO {iso}"));
+        }
+        if let Some(lens) = lens {
+            parts.push(format!(
+                "{}mm f/{}",
+                format_lens_focal_mm(lens.focal_mm),
+                format_lens_aperture(lens.aperture)
+            ));
+        }
+        Some(parts.join(" · "))
+    }
+
     pub fn is_terminal(&self) -> bool {
         is_terminal_analog_ingest_status(&self.status)
     }
@@ -207,5 +251,47 @@ mod tests {
         assert_eq!(job.status_label_de(), "Vorschau");
         assert!(!job.is_terminal());
         assert!(is_valid_analog_ingest_status(ANALOG_INGEST_STATUS_PREVIEW));
+    }
+
+    #[test]
+    fn analog_job_gear_line_formats_iso_and_lens() {
+        let lens = UserLens {
+            id: 1,
+            user_id: 1,
+            name: "Nifty".into(),
+            focal_mm: 50.0,
+            aperture: 2.4,
+            created_at: Utc::now(),
+        };
+        let job = AnalogIngestJob {
+            id: 1,
+            user_id: 1,
+            order_number: "544850-103396".into(),
+            secure_id: None,
+            camera_label: "Canon AE-1".into(),
+            album: None,
+            status: ANALOG_INGEST_STATUS_QUEUED.into(),
+            error_text: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            camera_id: Some(1),
+            lens_id: Some(1),
+            film_iso: Some(400),
+        };
+        assert_eq!(
+            job.gear_line(Some(&lens)).as_deref(),
+            Some("Canon AE-1 · ISO 400 · 50mm f/2.4")
+        );
+        assert_eq!(
+            job.gear_line(None).as_deref(),
+            Some("Canon AE-1 · ISO 400")
+        );
+        assert!(AnalogIngestJob {
+            film_iso: None,
+            lens_id: None,
+            ..job
+        }
+        .gear_line(None)
+        .is_none());
     }
 }

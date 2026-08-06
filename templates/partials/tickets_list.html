@@ -62,6 +62,96 @@
             Löschen
           </button>
         </div>
+        <form
+          class="ticket-gear"
+          hx-post="/api/tickets/{{ t.id }}/gear"
+          hx-target="#tickets-list"
+          hx-swap="innerHTML">
+          <label class="field compact">
+            <span>Kamera</span>
+            <select name="camera_id" aria-label="Kamera für {{ t.order_number }}">
+              <option value="">— keine —</option>
+              {% for camera in cameras %}
+                <option value="{{ camera.id }}"{% if t.has_camera(camera.id) %} selected{% endif %}>{{ camera.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field compact">
+            <span>Objektiv</span>
+            <select name="lens_id" aria-label="Objektiv für {{ t.order_number }}">
+              <option value="">— keins —</option>
+              {% for lens in lenses %}
+                <option value="{{ lens.id }}"{% if t.has_lens(lens.id) %} selected{% endif %}>{{ lens.name }} · {{ lens.focal_mm }}mm f/{{ lens.aperture }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field compact">
+            <span>Film-ISO</span>
+            <input
+              type="number"
+              name="film_iso"
+              min="1"
+              max="102400"
+              step="1"
+              placeholder="z. B. 400"
+              value="{% if let Some(iso) = t.film_iso %}{{ iso }}{% endif %}"
+              aria-label="Film-ISO für {{ t.order_number }}" />
+          </label>
+          <button type="submit" class="secondary small">Speichern</button>
+        </form>
+        {% if photoprism_configured %}
+          <details class="ticket-convert">
+            <summary class="secondary small">Importieren</summary>
+            <form
+              class="ticket-convert-form"
+              hx-post="/api/tickets/{{ t.id }}/convert"
+              hx-target="#analog-ingest-list"
+              hx-swap="innerHTML">
+              <label class="field compact">
+                <span>Secure-ID</span>
+                <input type="text" name="secure_id" required maxlength="8" minlength="8" placeholder="H5GGX3T5" />
+              </label>
+              <label class="field compact">
+                <span>Album (optional)</span>
+                <input type="text" name="album" maxlength="128" placeholder="Analog 2026" />
+              </label>
+              <label class="field compact">
+                <span>Kamera</span>
+                <select name="camera_id" aria-label="Kamera für Import {{ t.order_number }}">
+                  <option value="">— manuell —</option>
+                  {% for camera in cameras %}
+                    <option value="{{ camera.id }}"{% if t.has_camera(camera.id) %} selected{% endif %}>{{ camera.label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="field compact">
+                <span>Kamera (Freitext)</span>
+                <input type="text" name="camera_label" maxlength="64" placeholder="Canon AE-1" />
+              </label>
+              <label class="field compact">
+                <span>Objektiv</span>
+                <select name="lens_id" aria-label="Objektiv für Import {{ t.order_number }}">
+                  <option value="">— keins —</option>
+                  {% for lens in lenses %}
+                    <option value="{{ lens.id }}"{% if t.has_lens(lens.id) %} selected{% endif %}>{{ lens.name }} · {{ lens.focal_mm }}mm f/{{ lens.aperture }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="field compact">
+                <span>Film-ISO</span>
+                <input
+                  type="number"
+                  name="film_iso"
+                  min="1"
+                  max="102400"
+                  step="1"
+                  placeholder="z. B. 400"
+                  value="{% if let Some(iso) = t.film_iso %}{{ iso }}{% endif %}" />
+              </label>
+              <button type="submit" class="small">Import starten</button>
+            </form>
+          </details>
+        {% endif %}
       </li>
     {% endfor %}
   </ul>

@@ -15,36 +15,42 @@
       </tr>
     </thead>
     <tbody>
-      {% for job in jobs %}
+      {% for row in jobs %}
         <tr>
-          <td><code>{{ job.order_number }}</code></td>
-          <td>{{ job.camera_label }}</td>
+          <td><code>{{ row.job.order_number }}</code></td>
           <td>
-            <span class="status status-{{ job.status }}">{{ job.status_label_de() }}</span>
-            {% if job.status == "preview" %}
+            {% if let Some(line) = row.gear_line %}
+              {{ line }}
+            {% else %}
+              {{ row.job.camera_label }}
+            {% endif %}
+          </td>
+          <td>
+            <span class="status status-{{ row.job.status }}">{{ row.job.status_label_de() }}</span>
+            {% if row.job.status == "preview" %}
               <div class="ingest-preview-cta">
                 <button
                   type="button"
                   class="secondary small touch-target"
-                  hx-get="/api/analog/ingest/{{ job.id }}/preview"
+                  hx-get="/api/analog/ingest/{{ row.job.id }}/preview"
                   hx-target="#analog-preview-panel"
                   hx-swap="innerHTML">
                   Vorschau bearbeiten
                 </button>
               </div>
             {% endif %}
-            {% if let Some(err) = job.error_text %}
+            {% if let Some(err) = row.job.error_text %}
               <div class="error ingest-error">{{ err }}</div>
             {% endif %}
           </td>
-          <td>{{ job.updated_at.format("%d.%m.%Y %H:%M") }}</td>
+          <td>{{ row.job.updated_at.format("%d.%m.%Y %H:%M") }}</td>
           <td class="ingest-actions">
-            {% if job.can_delete() %}
+            {% if row.job.can_delete() %}
               <button
                 type="button"
                 class="ghost small touch-target"
-                hx-delete="/api/analog/ingest/{{ job.id }}"
-                hx-confirm="Import {{ job.order_number }} löschen? Danach kannst du erneut importieren."
+                hx-delete="/api/analog/ingest/{{ row.job.id }}"
+                hx-confirm="Import {{ row.job.order_number }} löschen? Danach kannst du erneut importieren."
                 hx-target="#analog-ingest-list"
                 hx-swap="innerHTML">
                 Löschen

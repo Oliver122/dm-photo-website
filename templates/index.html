@@ -74,9 +74,34 @@
                 <span>Secure-ID</span>
                 <input type="text" name="secure_id" placeholder="H5GGX3T5" required maxlength="8" minlength="8" />
               </label>
+              {% if cameras.is_empty() %}
+                <label class="field">
+                  <span>Kamera-Bezeichnung</span>
+                  <input type="text" name="camera_label" placeholder="Canon AE-1" required maxlength="64" />
+                </label>
+              {% else %}
+                <label class="field">
+                  <span>Kamera</span>
+                  <select name="camera_id" required>
+                    <option value="" disabled selected hidden>Kamera wählen …</option>
+                    {% for camera in cameras %}
+                      <option value="{{ camera.id }}">{{ camera.label }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              {% endif %}
               <label class="field">
-                <span>Kamera-Bezeichnung</span>
-                <input type="text" name="camera_label" placeholder="Canon AE-1" required maxlength="64" />
+                <span>Objektiv</span>
+                <select name="lens_id">
+                  <option value="">— keins —</option>
+                  {% for lens in lenses %}
+                    <option value="{{ lens.id }}">{{ lens.name }} · {{ lens.focal_mm }}mm f/{{ lens.aperture }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="field">
+                <span>Film-ISO (optional)</span>
+                <input type="number" name="film_iso" min="1" max="102400" step="1" placeholder="z. B. 400" />
               </label>
               <label class="field">
                 <span>Album (optional)</span>

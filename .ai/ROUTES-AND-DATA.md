@@ -32,6 +32,8 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 | POST | `/api/tickets` | user | api | Manual ticket create |
 | DELETE | `/api/tickets/:id` | user | api | Delete own ticket |
 | POST | `/api/tickets/:id/label` | user | api | Rename own ticket |
+| POST | `/api/tickets/:id/gear` | user | tickets | Save camera, lens, film ISO on ticket |
+| POST | `/api/tickets/:id/convert` | user | tickets | Convert ticket → analog ingest job (Secure-ID at submit) |
 | GET | `/api/users` | admin | api | List users |
 | DELETE | `/api/users/:id` | admin | api | Delete user |
 | * | `/static/*` | public | ServeDir | CSS/JS |
@@ -49,6 +51,7 @@ Migrations (embedded via SQLx in `db::init_pool`):
 | `0005_ticket_label.sql` | `tickets.label` |
 | `0006_analog_ingest.sql` | `analog_ingest_jobs` |
 | `0007_analog_ingest_partial_unique.sql` | partial unique on done jobs |
+| `0008_user_gear.sql` | `user_cameras`, `user_lenses`; gear columns on tickets + jobs |
 
 Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 
@@ -78,6 +81,29 @@ Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 | `created_at` | TEXT | |
 | `last_updated` | TEXT NULL | App always writes explicitly |
 | `completed_at` | TEXT NULL | |
+| `camera_id` | INTEGER NULL FK → user_cameras | Optional gear for import |
+| `lens_id` | INTEGER NULL FK → user_lenses | |
+| `film_iso` | INTEGER NULL | Film stock ISO |
+
+### `user_cameras`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | INTEGER PK | |
+| `user_id` | INTEGER FK → users ON DELETE CASCADE | |
+| `label` | TEXT | Unique per user (trim, case-insensitive) |
+| `created_at` | TEXT | |
+
+### `user_lenses`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | INTEGER PK | |
+| `user_id` | INTEGER FK → users ON DELETE CASCADE | |
+| `name` | TEXT | Unique per user |
+| `focal_mm` | REAL | > 0 |
+| `aperture` | REAL | f-number, > 0 |
+| `created_at` | TEXT | |
 
 ### `analog_ingest_jobs`
 
@@ -92,12 +118,15 @@ Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 | `status` | TEXT | `queued` / `downloading` / `preview` / `labeling` / `uploading` / `done` / `failed` |
 | `error_text` | TEXT NULL | German/technical message on failure |
 | `created_at` / `updated_at` | TEXT | |
+| `camera_id` | INTEGER NULL FK → user_cameras | |
+| `lens_id` | INTEGER NULL FK → user_lenses | |
+| `film_iso` | INTEGER NULL | Film stock ISO |
 
 Partial unique index `analog_ingest_jobs_user_order_done_idx` on `(user_id, order_number)` **WHERE `status = 'done'`** — idempotent re-import guard (failed/queued jobs for the same order may coexist).
 
 ## Models
 
-Rust structs in `src/models.rs`: `User`, `Ticket` (+ `completed_before`), `AnalogIngestJob`.
+Rust structs in `src/models.rs`: `User`, `UserCamera`, `UserLens`, `Ticket` (+ `completed_before`), `AnalogIngestJob` (+ `gear_line`).
 
 Status strings and helpers: `ANALOG_INGEST_STATUS_*` constants, `is_valid_analog_ingest_status`, `is_terminal_analog_ingest_status`, `AnalogIngestJob::status_label_de`.
 
@@ -116,3 +145,5 @@ Analog ingest SQL uses the `analog_ingest_*` naming prefix (not generic `ingest_
 | `confirm_analog_ingest_preview_for_user` | Owner confirm: `preview` → `labeling` |
 | `cancel_analog_ingest_preview_for_user` | Owner cancel: `preview` → `failed`, clear `secure_id` |
 | `find_done_analog_ingest_job` | Idempotency check for completed order |
+| `list_user_cameras` / `list_user_lenses` | Gear library for selects |
+| `update_ticket_gear_for_user` | Persist camera/lens/ISO on ticket |

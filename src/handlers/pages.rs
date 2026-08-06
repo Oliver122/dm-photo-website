@@ -15,11 +15,12 @@ use crate::{
         session::{ADMIN_KEY, AdminUser, AuthUser, OAUTH_STATE_KEY, USER_ID_KEY},
     },
     db,
-    models::{AnalogIngestJob, Ticket, User},
+    models::{Ticket, User, UserCamera, UserLens},
     state::AppState,
 };
 
 use super::tickets;
+use super::analog_ingest;
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -29,7 +30,9 @@ struct IndexTemplate {
     photoprism_configured: bool,
     tickets: Vec<Ticket>,
     archived_tickets: Vec<Ticket>,
-    jobs: Vec<AnalogIngestJob>,
+    jobs: Vec<analog_ingest::IngestJobRow>,
+    cameras: Vec<UserCamera>,
+    lenses: Vec<UserLens>,
 }
 
 #[derive(Template)]
@@ -76,10 +79,19 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         None => (Vec::new(), Vec::new()),
     };
     let jobs = match &current_user {
-        Some(user) => db::list_analog_ingest_jobs_for_user(&state.db, user.id)
-            .await
-            .unwrap_or_default(),
+        Some(user) => analog_ingest::ingest_job_rows(&state, user.id).await,
         None => Vec::new(),
+    };
+    let (cameras, lenses) = match &current_user {
+        Some(user) => (
+            db::list_user_cameras(&state.db, user.id)
+                .await
+                .unwrap_or_default(),
+            db::list_user_lenses(&state.db, user.id)
+                .await
+                .unwrap_or_default(),
+        ),
+        None => (Vec::new(), Vec::new()),
     };
 
     IndexTemplate {
@@ -89,6 +101,8 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         tickets,
         archived_tickets,
         jobs,
+        cameras,
+        lenses,
     }
 }
 
