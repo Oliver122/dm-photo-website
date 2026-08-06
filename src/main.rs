@@ -66,9 +66,10 @@ async fn main() -> Result<()> {
     // the dm order becomes available, and DM the owner.
     jobs::spawn_ticket_refresher(state.clone());
 
-    // Resolve static/ from crate root so CSS/JS load even when the binary
-    // is started from another working directory.
-    let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
+    // STATIC_DIR overrides; otherwise serve ./static relative to cwd (container WORKDIR).
+    let static_dir = std::env::var_os("STATIC_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("./static"));
     tracing::info!(path = %static_dir.display(), "serving static files");
 
     let app = Router::new()
