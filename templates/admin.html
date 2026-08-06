@@ -3,10 +3,48 @@
 {% block title %}Admin — dm-photo{% endblock %}
 
 {% block content %}
-  <h1>Admin dashboard</h1>
-  <p>{{ users.len() }} user(s) registered.</p>
+  <header class="page-head">
+    <h1>Admin</h1>
+    <p>{{ users.len() }} registrierte Nutzer</p>
+  </header>
 
-  <table class="users">
+  <section class="panel">
+    <h2>Tickets</h2>
+  <p>
+    <button
+      hx-post="/admin/tickets/refresh"
+      hx-target="#refresh-out"
+      hx-swap="innerHTML"
+      hx-disabled-elt="this"
+      hx-indicator="#refresh-spinner">
+      Update all unfinished orders
+    </button>
+    <span id="refresh-spinner" class="htmx-indicator">refreshing...</span>
+  </p>
+  <div id="refresh-out"></div>
+  <p>
+    <button
+      class="danger"
+      hx-delete="/admin/tickets"
+      hx-confirm="Delete ALL tickets for every user? This cannot be undone."
+      hx-target="#refresh-out"
+      hx-swap="innerHTML">
+      Delete all tickets
+    </button>
+  </p>
+  <p>
+    <button
+      hx-post="/admin/tickets/simulate"
+      hx-target="#refresh-out"
+      hx-swap="innerHTML">
+      Simulate done ticket (999999-999999)
+    </button>
+  </p>
+  </section>
+
+  <section class="panel">
+    <h2>Nutzer</h2>
+    <table class="users">
     <thead>
       <tr>
         <th>id</th>
@@ -39,8 +77,9 @@
       {% endfor %}
     </tbody>
   </table>
+  </section>
 
-  <form method="post" action="/admin/logout" class="inline">
-    <button type="submit">End admin session</button>
+  <form method="post" action="/admin/logout" class="inline" style="margin-top: 1rem;">
+    <button type="submit" class="secondary">Admin-Session beenden</button>
   </form>
 {% endblock %}

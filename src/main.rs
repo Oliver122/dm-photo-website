@@ -4,6 +4,7 @@ mod config;
 mod db;
 mod discord_bot;
 mod dm_analog;
+mod dm_order;
 mod handlers;
 mod jobs;
 mod models;
@@ -72,7 +73,10 @@ async fn main() -> Result<()> {
         http,
     };
 
+    jobs::spawn_ticket_refresher(state.clone());
     jobs::spawn_analog_ingest_worker(state.clone());
+
+    let static_dir = std::env::var("STATIC_DIR").unwrap_or_else(|_| "static".into());
 
     let app = Router::new()
         .route("/", get(handlers::pages::index))
@@ -87,13 +91,35 @@ async fn main() -> Result<()> {
         .route("/admin/login", post(handlers::pages::admin_login_submit))
         .route("/admin/logout", post(handlers::pages::admin_logout))
         .route("/admin", get(handlers::pages::admin_dashboard))
+        .route(
+            "/admin/tickets/refresh",
+            post(handlers::api::refresh_tickets),
+        )
+        .route(
+            "/admin/tickets",
+            delete(handlers::api::delete_all_tickets),
+        )
+        .route(
+            "/admin/tickets/simulate",
+            post(handlers::api::simulate_ticket),
+        )
         .route("/api/me", get(handlers::api::me))
         .route("/api/dm/me", post(handlers::api::dm_me))
-        .route("/api/analog/ingest", get(handlers::analog_ingest::list_ingest_jobs))
-        .route("/api/analog/ingest", post(handlers::analog_ingest::create_ingest_job))
+        .route("/api/order/check", post(handlers::api::check_order))
+        .route("/api/tickets", post(handlers::api::create_ticket_manual))
+        .route("/api/tickets/:id", delete(handlers::api::delete_my_ticket))
+        .route("/api/tickets/:id/label", post(handlers::api::rename_my_ticket))
+        .route(
+            "/api/analog/ingest",
+            get(handlers::analog_ingest::list_ingest_jobs),
+        )
+        .route(
+            "/api/analog/ingest",
+            post(handlers::analog_ingest::create_ingest_job),
+        )
         .route("/api/users", get(handlers::api::list_users))
         .route("/api/users/:id", delete(handlers::api::delete_user))
-        .nest_service("/static", ServeDir::new("static"))
+        .nest_service("/static", ServeDir::new(static_dir))
         .layer(session_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

@@ -1,76 +1,128 @@
 {% extends "base.html" %}
 
-{% block title %}Home — dm-photo{% endblock %}
+{% block title %}Aufträge — dm-photo{% endblock %}
 
 {% block content %}
-  <h1>Welcome</h1>
   {% match current_user %}
     {% when Some with (user) %}
-      <p>Hello, <strong>{{ user.username }}</strong>!</p>
-      <p>Discord id: <code>{{ user.discord_id }}</code></p>
-      <p>Last login: <code>{{ user.last_login }}</code></p>
-      <p>
-        <button hx-get="/api/me" hx-target="#me-out" hx-swap="innerHTML">
-          Fetch /api/me
-        </button>
-      </p>
-      <pre id="me-out"></pre>
+      <header class="page-head">
+        <h1>Deine Foto-Aufträge</h1>
+        <p>Trage eine dm-Auftragsnummer ein — wir benachrichtigen dich per Discord, sobald die Bilder abholbereit sind.</p>
+      </header>
 
-      <h2>Discord DM</h2>
-      <p>
-        <button
-          hx-post="/api/dm/me"
-          hx-target="#dm-out"
-          hx-swap="innerHTML"
-          hx-disabled-elt="this"
-          hx-indicator="#dm-spinner">
-          Send me a message
-        </button>
-        <span id="dm-spinner" class="htmx-indicator">sending...</span>
-      </p>
-      <div id="dm-out"></div>
+      <div class="stack">
+        <section class="panel">
+          <p class="panel-title">Neu</p>
+          <h2>Auftrag hinzufügen</h2>
+          <form class="order-form" id="order-form">
+            <label class="field">
+              <span>Name</span>
+              <input type="text" name="label" placeholder="Urlaub 2026, Hochzeit …" maxlength="80" />
+            </label>
+            <label class="field">
+              <span>Auftragsnummer</span>
+              <input type="text" name="order_number" placeholder="544850-103554"
+                     pattern="\d{6}-\d{6}" required inputmode="numeric" />
+            </label>
+            <div class="form-actions">
+              <button
+                type="button"
+                hx-post="/api/order/check"
+                hx-include="#order-form"
+                hx-target="#order-out"
+                hx-swap="innerHTML"
+                hx-disabled-elt="this"
+                hx-indicator="#order-spinner">
+                Status prüfen
+              </button>
+              <button
+                type="button"
+                class="secondary"
+                hx-post="/api/tickets"
+                hx-include="#order-form"
+                hx-target="#order-out"
+                hx-swap="innerHTML"
+                hx-disabled-elt="this"
+                hx-indicator="#order-spinner">
+                Nur speichern
+              </button>
+              <span id="order-spinner" class="htmx-indicator">Bitte warten …</span>
+            </div>
+          </form>
+          <div id="order-out"></div>
+        </section>
 
-      <h2>Analog-Import (dm)</h2>
-      {% if photoprism_configured %}
-        <p class="muted">
-          Auftragsnummer und Secure-ID vom dm-Beleg eingeben. Der Download-Link ist etwa 6 Wochen gültig.
-        </p>
-        <form
-          class="stack ingest-form"
-          hx-post="/api/analog/ingest"
-          hx-target="#analog-ingest-list"
-          hx-swap="innerHTML">
-          <label>
-            Auftragsnummer
-            <input type="text" name="order_number" placeholder="123456-123456" required pattern="\d{6}-\d{6}" />
-          </label>
-          <label>
-            Secure-ID
-            <input type="text" name="secure_id" placeholder="H5GGX3T5" required maxlength="8" minlength="8" />
-          </label>
-          <label>
-            Kamera-Bezeichnung
-            <input type="text" name="camera_label" placeholder="Canon AE-1" required maxlength="64" />
-          </label>
-          <label>
-            Album (optional)
-            <input type="text" name="album_name" placeholder="Analog 2026" maxlength="128" />
-          </label>
-          <button type="submit">Import starten</button>
-        </form>
-      {% else %}
-        <p class="muted">PhotoPrism ist noch nicht konfiguriert — Import ist derzeit deaktiviert.</p>
-      {% endif %}
+        <section class="panel">
+          <p class="panel-title">Übersicht</p>
+          <h2>Aktive Aufträge</h2>
+          <div id="tickets-list">
+            {% include "partials/tickets_list.html" %}
+          </div>
+        </section>
 
-      <div
-        id="analog-ingest-list"
-        hx-get="/api/analog/ingest"
-        hx-trigger="load, every 5s"
-        hx-swap="innerHTML">
-        <p class="muted">Lade Import-Status …</p>
+        <details class="dev-panel">
+          <summary>Entwickler · Discord-Test</summary>
+          <p class="muted">Sendet eine Testnachricht an <code>{{ user.discord_id }}</code>.</p>
+          <button
+            class="secondary small"
+            hx-post="/api/dm/me"
+            hx-target="#dm-out"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="#dm-spinner">
+            Test-DM senden
+          </button>
+          <span id="dm-spinner" class="htmx-indicator">Sende …</span>
+          <div id="dm-out"></div>
+        </details>
       </div>
+      <section class="panel">
+        <p class="panel-title">Analog</p>
+        <h2>Analog-Import (dm)</h2>
+        {% if photoprism_configured %}
+          <p class="muted">
+            Auftragsnummer und Secure-ID vom dm-Beleg eingeben. Der Download-Link ist etwa 6 Wochen gültig.
+          </p>
+          <form
+            class="stack ingest-form"
+            hx-post="/api/analog/ingest"
+            hx-target="#analog-ingest-list"
+            hx-swap="innerHTML">
+            <label class="field">
+              <span>Auftragsnummer</span>
+              <input type="text" name="order_number" placeholder="123456-123456" required pattern="\d{6}-\d{6}" />
+            </label>
+            <label class="field">
+              <span>Secure-ID</span>
+              <input type="text" name="secure_id" placeholder="H5GGX3T5" required maxlength="8" minlength="8" />
+            </label>
+            <label class="field">
+              <span>Kamera-Bezeichnung</span>
+              <input type="text" name="camera_label" placeholder="Canon AE-1" required maxlength="64" />
+            </label>
+            <label class="field">
+              <span>Album (optional)</span>
+              <input type="text" name="album_name" placeholder="Analog 2026" maxlength="128" />
+            </label>
+            <button type="submit">Import starten</button>
+          </form>
+        {% else %}
+          <p class="muted">PhotoPrism ist noch nicht konfiguriert — Import ist derzeit deaktiviert.</p>
+        {% endif %}
+
+        <div
+          id="analog-ingest-list"
+          hx-get="/api/analog/ingest"
+          hx-trigger="load, every 5s"
+          hx-swap="innerHTML">
+          <p class="muted">Lade Import-Status …</p>
+        </div>
+      </section>
     {% when None %}
-      <p>You are not logged in.</p>
-      <p><a class="button" href="/login">Login with Discord</a></p>
+      <div class="auth-card">
+        <h1>dm-photo</h1>
+        <p>Behalte deine dm-Foto-Aufträge im Blick und werde per Discord benachrichtigt.</p>
+        <a class="button" href="/login">Mit Discord anmelden</a>
+      </div>
   {% endmatch %}
 {% endblock %}

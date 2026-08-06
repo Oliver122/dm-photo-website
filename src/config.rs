@@ -32,6 +32,7 @@ pub struct Config {
     pub discord_redirect_uri: String,
     pub discord_bot_token: Option<String>,
     pub dm_message: String,
+    pub dm_key_account_id: String,
     pub admin_password: String,
     pub session_secret: Vec<u8>,
     pub photoprism: PhotoPrismConfig,
@@ -40,6 +41,9 @@ pub struct Config {
 
 const DEFAULT_DM_MESSAGE: &str =
     "Hello from dm-photo-website! This is a test message triggered from the site.";
+
+/// dm Foto key account id used by the spot.photoprintit.com order status API.
+const DEFAULT_DM_KEY_ACCOUNT_ID: &str = "1320";
 
 impl Config {
     pub fn from_env() -> Result<Self> {
@@ -73,6 +77,12 @@ impl Config {
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty())
             .unwrap_or_else(|| DEFAULT_DM_MESSAGE.to_string());
+
+        let dm_key_account_id = env::var("DM_KEY_ACCOUNT_ID")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| DEFAULT_DM_KEY_ACCOUNT_ID.to_string());
 
         let admin_password = require("ADMIN_PASSWORD")?;
 
@@ -110,6 +120,7 @@ impl Config {
             discord_redirect_uri,
             discord_bot_token,
             dm_message,
+            dm_key_account_id,
             admin_password,
             session_secret: session_secret_raw.into_bytes(),
             photoprism,
