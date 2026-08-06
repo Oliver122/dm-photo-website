@@ -32,6 +32,9 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
+    # Image entrypoint chowns /data to uid 10001. If an older image fails with
+    # "unable to open database file", fix once:
+    #   docker run --rm -v <project>_app-data:/data busybox chown -R 10001:10001 /data
 
 volumes:
   app-data:
