@@ -11,6 +11,24 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct UserCamera {
+    pub id: i64,
+    pub user_id: i64,
+    pub label: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct UserLens {
+    pub id: i64,
+    pub user_id: i64,
+    pub name: String,
+    pub focal_mm: f64,
+    pub aperture: f64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Ticket {
     pub id: i64,
     pub user_id: i64,
@@ -26,6 +44,9 @@ pub struct Ticket {
     pub created_at: DateTime<Utc>,
     pub last_updated: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
+    pub camera_id: Option<i64>,
+    pub lens_id: Option<i64>,
+    pub film_iso: Option<i32>,
 }
 
 impl Ticket {
@@ -59,6 +80,9 @@ pub struct AnalogIngestJob {
     pub error_text: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub camera_id: Option<i64>,
+    pub lens_id: Option<i64>,
+    pub film_iso: Option<i32>,
 }
 
 impl AnalogIngestJob {
@@ -132,6 +156,9 @@ mod tests {
             created_at: Utc::now(),
             last_updated: None,
             completed_at,
+            camera_id: None,
+            lens_id: None,
+            film_iso: None,
         }
     }
 
@@ -165,6 +192,9 @@ mod tests {
             error_text: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            camera_id: None,
+            lens_id: None,
+            film_iso: None,
         };
         assert_eq!(job.status_label_de(), "Warteschlange");
         job.status = ANALOG_INGEST_STATUS_DONE.into();
