@@ -166,7 +166,13 @@ fn metadata_from_path(path: &Path) -> Result<Metadata, CameraExifError> {
     match Metadata::new_from_path(path) {
         Ok(meta) => Ok(meta),
         Err(source) => {
-            if source.to_string().contains("No EXIF data found") {
+            // CEWE scans and post-rotate JPEG rewrites often have no APP1 EXIF.
+            // little_exif returns Err("No EXIF data found!") instead of empty Metadata.
+            if is_missing_exif_error(&source) {
+                tracing::debug!(
+                    path = %path.display(),
+                    "no existing EXIF; creating new metadata for stamp"
+                );
                 Ok(Metadata::new())
             } else {
                 Err(CameraExifError::Read {
@@ -176,6 +182,13 @@ fn metadata_from_path(path: &Path) -> Result<Metadata, CameraExifError> {
             }
         }
     }
+}
+
+fn is_missing_exif_error(err: &std::io::Error) -> bool {
+    let msg = err.to_string().to_ascii_lowercase();
+    msg.contains("no exif data found")
+        || msg.contains("no exif")
+        || (err.kind() == std::io::ErrorKind::Other && msg.contains("exif"))
 }
 
 fn touch_mtime(path: &Path) -> Result<(), CameraExifError> {
@@ -393,5 +406,41 @@ mod tests {
         assert!((focal - 50.0).abs() < 0.01, "focal length {focal}");
         let f_number = first_f_number(&meta).expect("f-number tag");
         assert!((f_number - 2.4).abs() < 0.01, "f-number {f_number}");
+    }
+
+    /// Bare / post-rotate JPEGs have no APP1 — must still stamp (job_id=4 failure mode).
+    #[test]
+    fn stamps_jpeg_with_no_existing_exif_after_rotate_rewrite() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("imm000_00.jpg");
+        write_fixture_jpeg(&path);
+
+        assert!(
+            Metadata::new_from_path(&path).is_err(),
+            "fixture should have no EXIF before stamp"
+        );
+
+        stamp_ingest_metadata(&path, "Canon AE-1", Some(400), None, None)
+            .expect("stamp onto bare jpeg");
+
+        crate::image_rotate::rotate_cw(&path).expect("rotate rewrite strips EXIF");
+        assert!(
+            Metadata::new_from_path(&path).is_err(),
+            "rotate rewrite should leave no EXIF"
+        );
+
+        stamp_ingest_metadata(&path, "Leica M6", Some(200), Some(50.0), Some(2.4))
+            .expect("stamp after rotate rewrite");
+
+        let meta = Metadata::new_from_path(&path).expect("read re-stamped jpeg");
+        assert_eq!(first_make(&meta).as_deref(), Some("Leica"));
+        assert_eq!(first_model(&meta).as_deref(), Some("M6"));
+        assert_eq!(first_iso(&meta), Some(200));
+    }
+
+    #[test]
+    fn missing_exif_error_detection() {
+        let err = std::io::Error::new(std::io::ErrorKind::Other, "No EXIF data found!");
+        assert!(is_missing_exif_error(&err));
     }
 }
