@@ -1,0 +1,11 @@
+target/
+.env
+.env.local
+data/
+docs/
+.git
+.ai/
+.cursor/
+*.log
+.DS_Store
+README.md

@@ -4,6 +4,8 @@ Rust + HTMX website with Discord OAuth login, SQLite-backed users, server-side
 cookie sessions, a JSON REST API, and admin routes gated by an admin password
 stored in `.env`.
 
+**AI / agent context:** see [`.ai/INDEX.md`](.ai/INDEX.md) (architecture, requirements, routes, branch rules, reviews). Prefer that over this README when they disagree.
+
 ## Stack
 
 - **Backend:** [Axum](https://github.com/tokio-rs/axum) on Tokio
@@ -65,3 +67,30 @@ Single `users` table:
 | `last_login`| TEXT    | ISO timestamp               |
 
 The `tower_sessions` session table is created automatically by the store.
+
+## Container image (Artifactory)
+
+JFrog Artifactory is operated on the server outside this repo. This project only
+builds/pushes the app image and runs it via Compose.
+
+**Build and push** (needs Docker + Artifactory credentials):
+
+```bash
+export ARTIFACTORY_DOCKER_REGISTRY=artifactory.example.com/docker-local
+export ARTIFACTORY_USER=...
+export ARTIFACTORY_TOKEN=...   # or ARTIFACTORY_PASSWORD
+# optional: IMAGE_NAME=dm-photo-website  TAG=<sha>  PUSH_LATEST=1
+./scripts/build-and-push.sh
+```
+
+**Run the app** (pull from Artifactory; put `.env` beside the compose file):
+
+```bash
+export ARTIFACTORY_DOCKER_REGISTRY=artifactory.example.com/docker-local
+export TAG=latest   # or a short git SHA you pushed
+cp .env.example deploy/app/.env   # then edit secrets / DISCORD_REDIRECT_URI
+docker compose -f deploy/app/docker-compose.yml up -d
+```
+
+SQLite persists in the `app-data` volume at `/data/app.db`. If the public host
+is not localhost, set `DISCORD_REDIRECT_URI` to match the Discord app redirect.

@@ -1,0 +1,47 @@
+# Private Docker registry (distribution/registry:2).
+# Best fit here: free, self-hosted, no Pro license — unlike Artifactory CE for C/C++.
+# Put TLS in front with your existing reverse proxy (Caddy/Traefik/nginx/OpenResty).
+#
+# One-time auth setup (from this directory) — MUST exist before first start:
+#   mkdir -p auth
+#   # If a previous run created auth/htpasswd as a directory, remove it:
+#   #   rm -rf auth/htpasswd
+#   docker run --rm --entrypoint htpasswd httpd:2 -Bbn USER PASSWORD > auth/htpasswd
+#   # Must be a regular file (not a directory):
+#   #   file auth/htpasswd
+#
+# Start:
+#   docker compose -f deploy/registry/docker-compose.yml up -d
+#
+# Login / push (example host):
+#   docker login dm-registry.olivers-homelab2.cc
+#   # In scripts/build-and-push.sh set:
+#   #   ARTIFACTORY_DOCKER_REGISTRY=dm-registry.olivers-homelab2.cc
+#   #   ARTIFACTORY_USER=USER
+#   #   ARTIFACTORY_TOKEN=PASSWORD
+#
+# Proxy upstream should target host port 5001 (container listens on 5000).
+#
+# Note: mount the auth *directory*, not the htpasswd file. Binding a single
+# file as :ro often yields: open /auth/htpasswd: read-only file system.
+
+services:
+  registry:
+    image: registry:2
+    container_name: dm-photo-registry
+    restart: unless-stopped
+    ports:
+      # Host 5000 is often already taken; map a free port → container 5000.
+      - "5001:5000"
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_HTTP_SECRET: ${REGISTRY_HTTP_SECRET:-dm-photo-registry-change-me}
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    volumes:
+      - registry-data:/var/lib/registry
+      - ./auth:/auth:ro
+
+volumes:
+  registry-data:

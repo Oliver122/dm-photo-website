@@ -1,0 +1,23 @@
+# Run the app image pulled from JFrog Artifactory.
+# Requires ARTIFACTORY_DOCKER_REGISTRY (and a .env next to this file or via --env-file).
+#
+# Discord OAuth: if the public host is not localhost, set DISCORD_REDIRECT_URI in
+# .env to match the Discord app redirect (e.g. https://your.host/auth/discord/callback).
+
+services:
+  app:
+    image: ${ARTIFACTORY_DOCKER_REGISTRY}/dm-photo-website:${TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:///data/app.db
+      # Listen on all interfaces inside the container so published ports work.
+      SERVER_ADDR: "0.0.0.0:8080"
+    volumes:
+      - app-data:/data
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  app-data:

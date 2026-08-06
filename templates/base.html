@@ -1,29 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}dm-photo-website{% endblock %}</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <title>{% block title %}dm-photo{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>{% include "../static/styles.css" %}</style>
     <script src="/static/htmx.min.js" defer></script>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/">dm-photo</a>
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true"></span>
+        dm-photo
+      </a>
       <nav>
         {% match current_user %}
           {% when Some with (user) %}
-            <span class="user">@{{ user.username }}</span>
+            <span class="user">{{ user.username }}</span>
             <form method="post" action="/logout" class="inline">
-              <button type="submit" class="link">Logout</button>
+              <button type="submit" class="link">Abmelden</button>
             </form>
           {% when None %}
-            <a href="/login">Login</a>
+            <a href="/login">Anmelden</a>
         {% endmatch %}
         {% if is_admin %}
           <a href="/admin">Admin</a>
-        {% else %}
-          <a href="/admin/login">Admin login</a>
         {% endif %}
       </nav>
     </header>

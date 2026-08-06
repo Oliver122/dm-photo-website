@@ -1,36 +1,86 @@
 {% extends "base.html" %}
 
-{% block title %}Home — dm-photo{% endblock %}
+{% block title %}Aufträge — dm-photo{% endblock %}
 
 {% block content %}
-  <h1>Welcome</h1>
   {% match current_user %}
     {% when Some with (user) %}
-      <p>Hello, <strong>{{ user.username }}</strong>!</p>
-      <p>Discord id: <code>{{ user.discord_id }}</code></p>
-      <p>Last login: <code>{{ user.last_login }}</code></p>
-      <p>
-        <button hx-get="/api/me" hx-target="#me-out" hx-swap="innerHTML">
-          Fetch /api/me
-        </button>
-      </p>
-      <pre id="me-out"></pre>
+      <header class="page-head">
+        <h1>Deine Foto-Aufträge</h1>
+        <p>Trage eine dm-Auftragsnummer ein — wir benachrichtigen dich per Discord, sobald die Bilder abholbereit sind.</p>
+      </header>
 
-      <h2>Discord DM</h2>
-      <p>
-        <button
-          hx-post="/api/dm/me"
-          hx-target="#dm-out"
-          hx-swap="innerHTML"
-          hx-disabled-elt="this"
-          hx-indicator="#dm-spinner">
-          Send me a message
-        </button>
-        <span id="dm-spinner" class="htmx-indicator">sending...</span>
-      </p>
-      <div id="dm-out"></div>
+      <div class="stack">
+        <section class="panel">
+          <p class="panel-title">Neu</p>
+          <h2>Auftrag hinzufügen</h2>
+          <form class="order-form" id="order-form">
+            <label class="field">
+              <span>Name</span>
+              <input type="text" name="label" placeholder="Urlaub 2026, Hochzeit …" maxlength="80" />
+            </label>
+            <label class="field">
+              <span>Auftragsnummer</span>
+              <input type="text" name="order_number" placeholder="544850-103554"
+                     pattern="\d{6}-\d{6}" required inputmode="numeric" />
+            </label>
+            <div class="form-actions">
+              <button
+                type="button"
+                hx-post="/api/order/check"
+                hx-include="#order-form"
+                hx-target="#order-out"
+                hx-swap="innerHTML"
+                hx-disabled-elt="this"
+                hx-indicator="#order-spinner">
+                Status prüfen
+              </button>
+              <button
+                type="button"
+                class="secondary"
+                hx-post="/api/tickets"
+                hx-include="#order-form"
+                hx-target="#order-out"
+                hx-swap="innerHTML"
+                hx-disabled-elt="this"
+                hx-indicator="#order-spinner">
+                Nur speichern
+              </button>
+              <span id="order-spinner" class="htmx-indicator">Bitte warten …</span>
+            </div>
+          </form>
+          <div id="order-out"></div>
+        </section>
+
+        <section class="panel">
+          <p class="panel-title">Übersicht</p>
+          <h2>Aktive Aufträge</h2>
+          <div id="tickets-list">
+            {% include "partials/tickets_list.html" %}
+          </div>
+        </section>
+
+        <details class="dev-panel">
+          <summary>Entwickler · Discord-Test</summary>
+          <p class="muted">Sendet eine Testnachricht an <code>{{ user.discord_id }}</code>.</p>
+          <button
+            class="secondary small"
+            hx-post="/api/dm/me"
+            hx-target="#dm-out"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="#dm-spinner">
+            Test-DM senden
+          </button>
+          <span id="dm-spinner" class="htmx-indicator">Sende …</span>
+          <div id="dm-out"></div>
+        </details>
+      </div>
     {% when None %}
-      <p>You are not logged in.</p>
-      <p><a class="button" href="/login">Login with Discord</a></p>
+      <div class="auth-card">
+        <h1>dm-photo</h1>
+        <p>Behalte deine dm-Foto-Aufträge im Blick und werde per Discord benachrichtigt.</p>
+        <a class="button" href="/login">Mit Discord anmelden</a>
+      </div>
   {% endmatch %}
 {% endblock %}

@@ -1,0 +1,112 @@
+{% if tickets.is_empty() && archived_tickets.is_empty() %}
+  <p class="empty-state">
+    <strong>Noch keine Aufträge</strong>
+    Oben Auftragsnummer eingeben und „Status prüfen“ klicken.
+  </p>
+{% else %}
+  <ul class="ticket-list">
+    {% for t in tickets %}
+      <li class="ticket{% if t.completed %} is-done{% endif %}" id="ticket-{{ t.id }}">
+        <div class="ticket-main">
+          <div class="ticket-top">
+            <div class="ticket-info">
+              {% if let Some(label) = t.label %}
+                <h3 class="ticket-name">{{ label }}</h3>
+              {% else %}
+                <h3 class="ticket-name placeholder">Ohne Namen</h3>
+              {% endif %}
+              <p class="ticket-order">{{ t.order_number }}</p>
+            </div>
+            {% if t.completed %}
+              <span class="pill pill-done">Abholbereit</span>
+            {% else %}
+              <span class="pill pill-open">In Bearbeitung</span>
+            {% endif %}
+          </div>
+          <p class="ticket-message">
+            <span class="code">{{ t.summary_state_code }}</span>
+            {% if let Some(text) = t.summary_state_text %}
+              {{ text }}
+            {% else %}
+              Status wird beim nächsten Update geladen.
+            {% endif %}
+          </p>
+          <p class="ticket-meta-line">
+            Erstellt {{ t.created_at.format("%d.%m.%Y") }}
+            {% if let Some(updated) = t.last_updated %}
+              · Aktualisiert {{ updated.format("%d.%m.%Y %H:%M") }}
+            {% endif %}
+          </p>
+        </div>
+        <div class="ticket-foot">
+          <form
+            class="ticket-rename"
+            hx-post="/api/tickets/{{ t.id }}/label"
+            hx-target="#tickets-list"
+            hx-swap="innerHTML">
+            <input
+              type="text"
+              name="label"
+              value="{% if let Some(label) = t.label %}{{ label }}{% endif %}"
+              placeholder="Name vergeben …"
+              maxlength="80"
+              aria-label="Name für {{ t.order_number }}" />
+            <button type="submit" class="secondary small">Speichern</button>
+          </form>
+          <button
+            class="ghost small ticket-delete"
+            hx-delete="/api/tickets/{{ t.id }}"
+            hx-confirm="Auftrag {{ t.order_number }} wirklich löschen?"
+            hx-target="#tickets-list"
+            hx-swap="innerHTML">
+            Löschen
+          </button>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if !archived_tickets.is_empty() %}
+    <details class="archive">
+      <summary>Archiv · {{ archived_tickets.len() }} ältere Aufträge</summary>
+      <ul class="ticket-list">
+        {% for t in archived_tickets %}
+          <li class="ticket is-done" id="ticket-{{ t.id }}">
+            <div class="ticket-main">
+              <div class="ticket-top">
+                <div class="ticket-info">
+                  {% if let Some(label) = t.label %}
+                    <h3 class="ticket-name">{{ label }}</h3>
+                  {% else %}
+                    <h3 class="ticket-name placeholder">Ohne Namen</h3>
+                  {% endif %}
+                  <p class="ticket-order">{{ t.order_number }}</p>
+                </div>
+                <span class="pill pill-archive">Archiv</span>
+              </div>
+              <p class="ticket-message muted">
+                {{ t.summary_state_code }}
+                {% if let Some(text) = t.summary_state_text %} — {{ text }}{% endif %}
+              </p>
+              <p class="ticket-meta-line">
+                {% if let Some(at) = t.completed_at %}
+                  Abgeschlossen {{ at.format("%d.%m.%Y") }}
+                {% endif %}
+              </p>
+            </div>
+            <div class="ticket-foot">
+              <button
+                class="ghost small"
+                hx-delete="/api/tickets/{{ t.id }}"
+                hx-confirm="Auftrag {{ t.order_number }} wirklich löschen?"
+                hx-target="#tickets-list"
+                hx-swap="innerHTML">
+                Löschen
+              </button>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+{% endif %}
