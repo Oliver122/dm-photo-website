@@ -1,0 +1,38 @@
+# Run the app image pulled from a Docker registry (JFrog Artifactory or compatible).
+#
+# Required env (shell or `.env` beside this file):
+#   ARTIFACTORY_DOCKER_REGISTRY  e.g. jfrog.olivers-homelab2.cc/docker-local
+#                                or   dm-registry.olivers-homelab2.cc
+#   TAG                          image tag (default: latest)
+#
+# App secrets live in `.env` (see `.env.example` + PhotoPrism vars below).
+# Pull auth (if the registry is private):
+#   docker login "$ARTIFACTORY_DOCKER_REGISTRY"
+#
+# Discord OAuth: if the public host is not localhost, set DISCORD_REDIRECT_URI in
+# `.env` to match the Discord app redirect (e.g. https://your.host/auth/discord/callback).
+#
+# Usage:
+#   export ARTIFACTORY_DOCKER_REGISTRY='dm-registry.olivers-homelab2.cc'
+#   export TAG=v0.1.0
+#   docker compose -f deploy/app/docker-compose.yml --env-file deploy/app/.env up -d
+
+services:
+  app:
+    image: ${ARTIFACTORY_DOCKER_REGISTRY}/dm-photo-website:${TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:///data/app.db
+      # Listen on all interfaces inside the container so published ports work.
+      SERVER_ADDR: "0.0.0.0:8080"
+      # Scratch space for CEWE ZIP download / EXIF stamp (REQ-005).
+      ANALOG_INGEST_DIR: /data/ingest
+    volumes:
+      - app-data:/data
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  app-data:
