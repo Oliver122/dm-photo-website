@@ -4,6 +4,8 @@ Rust + HTMX website with Discord OAuth login, SQLite-backed users, server-side
 cookie sessions, a JSON REST API, and admin routes gated by an admin password
 stored in `.env`.
 
+**AI / agent context:** see [`.ai/INDEX.md`](.ai/INDEX.md) (architecture, requirements, routes, branch rules, reviews). Prefer that over this README when they disagree.
+
 ## Stack
 
 - **Backend:** [Axum](https://github.com/tokio-rs/axum) on Tokio
