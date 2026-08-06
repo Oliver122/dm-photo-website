@@ -8,16 +8,18 @@
   {% if images.is_empty() %}
     <p class="empty-state">Keine Bilder im Arbeitsverzeichnis gefunden.</p>
   {% else %}
-    <div class="ingest-preview-grid">
+    <div class="film-strip" role="list">
       {% for image in images %}
-        <article class="ingest-preview-card">
-          <img
-            class="ingest-preview-img"
-            src="/api/analog/ingest/{{ job.id }}/preview/file?path={{ image.relative_path }}&t={{ cache_bust }}"
-            alt="{{ image.file_name }}"
-            loading="lazy" />
-          <p class="ingest-preview-name">{{ image.file_name }}</p>
-          <div class="ingest-preview-actions">
+        <article class="film-frame" role="listitem">
+          <div class="film-frame-img-wrap">
+            <img
+              class="ingest-preview-img"
+              src="/api/analog/ingest/{{ job.id }}/preview/file?path={{ image.relative_path }}&t={{ cache_bust }}"
+              alt="{{ image.file_name }}"
+              loading="lazy" />
+          </div>
+          <p class="film-frame-name" title="{{ image.file_name }}">{{ image.file_name }}</p>
+          <div class="film-frame-actions">
             <form
               class="inline-rotate"
               hx-post="/api/analog/ingest/{{ job.id }}/preview/rotate"
@@ -27,7 +29,7 @@
               hx-indicator="find .rotate-spinner">
               <input type="hidden" name="file" value="{{ image.relative_path }}" />
               <input type="hidden" name="direction" value="ccw" />
-              <button type="submit" class="secondary touch-target" aria-label="90° gegen den Uhrzeigersinn">
+              <button type="submit" class="secondary small touch-target" aria-label="90° gegen den Uhrzeigersinn">
                 ↺ Links
               </button>
               <span class="rotate-spinner htmx-indicator" aria-hidden="true">…</span>
@@ -41,7 +43,7 @@
               hx-indicator="find .rotate-spinner">
               <input type="hidden" name="file" value="{{ image.relative_path }}" />
               <input type="hidden" name="direction" value="cw" />
-              <button type="submit" class="secondary touch-target" aria-label="90° im Uhrzeigersinn">
+              <button type="submit" class="secondary small touch-target" aria-label="90° im Uhrzeigersinn">
                 ↻ Rechts
               </button>
               <span class="rotate-spinner htmx-indicator" aria-hidden="true">…</span>

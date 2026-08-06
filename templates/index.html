@@ -6,14 +6,14 @@
   {% match current_user %}
     {% when Some with (user) %}
       <header class="page-head">
+        <p class="page-eyebrow">Darkroom</p>
         <h1>Deine Foto-Aufträge</h1>
-        <p>Trage eine dm-Auftragsnummer ein — wir benachrichtigen dich per Discord, sobald die Bilder abholbereit sind.</p>
+        <p class="page-lead">Trage eine dm-Auftragsnummer ein — wir benachrichtigen dich per Discord, sobald die Bilder abholbereit sind.</p>
       </header>
 
       <div class="stack">
-        <section class="panel">
-          <p class="panel-title">Neu</p>
-          <h2>Auftrag hinzufügen</h2>
+        <section class="home-section" aria-labelledby="section-auftraege">
+          <h2 id="section-auftraege" class="section-title">Aufträge</h2>
           <form class="order-form" id="order-form">
             <label class="field">
               <span>Name</span>
@@ -50,21 +50,15 @@
             </div>
           </form>
           <div id="order-out"></div>
-        </section>
-
-        <section class="panel">
-          <p class="panel-title">Übersicht</p>
-          <h2>Aktive Aufträge</h2>
           <div id="tickets-list">
             {% include "partials/tickets_list.html" %}
           </div>
         </section>
 
-        <section class="panel">
-          <p class="panel-title">Analog</p>
-          <h2>Analog-Import (dm)</h2>
+        <section class="home-section" aria-labelledby="section-analog">
+          <h2 id="section-analog" class="section-title">Analog-Import</h2>
           {% if photoprism_configured %}
-            <p class="muted panel-note">
+            <p class="section-note">
               Auftragsnummer und Secure-ID vom dm-Beleg eingeben. Der Download-Link ist etwa 6 Wochen gültig.
             </p>
             <form
@@ -91,7 +85,7 @@
               <button type="submit">Import starten</button>
             </form>
           {% else %}
-            <p class="muted panel-note">PhotoPrism ist noch nicht konfiguriert — Import ist derzeit deaktiviert.</p>
+            <p class="section-note">PhotoPrism ist noch nicht konfiguriert — Import ist derzeit deaktiviert.</p>
           {% endif %}
 
           <div
