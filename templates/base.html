@@ -19,6 +19,7 @@
       <nav>
         {% match current_user %}
           {% when Some with (user) %}
+            <a href="/gear">Ausrüstung</a>
             <span class="user">{{ user.username }}</span>
             <form method="post" action="/logout" class="inline">
               <button type="submit" class="link">Abmelden</button>

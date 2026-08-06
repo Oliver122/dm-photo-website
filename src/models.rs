@@ -28,6 +28,22 @@ pub struct UserLens {
     pub created_at: DateTime<Utc>,
 }
 
+impl UserLens {
+    /// Compact display for lists, e.g. `50 mm · f/2.4`.
+    pub fn spec_label(&self) -> String {
+        format!("{} mm · f/{}", format_lens_number(self.focal_mm), format_lens_number(self.aperture))
+    }
+}
+
+fn format_lens_number(value: f64) -> String {
+    if value.fract() == 0.0 {
+        format!("{:.0}", value)
+    } else {
+        let s = format!("{:.1}", value);
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Ticket {
     pub id: i64,
