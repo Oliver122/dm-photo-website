@@ -432,7 +432,7 @@ pub async fn set_ticket_completed(pool: &SqlitePool, id: i64, completed: bool) -
     .context("failed to update ticket completed flag")?;
     Ok(result.rows_affected() > 0)
 }
-pub async fn create_job(
+pub async fn create_analog_ingest_job(
     pool: &SqlitePool,
     user_id: i64,
     order_number: &str,
@@ -456,12 +456,12 @@ pub async fn create_job(
     .await
     .context("failed to create analog ingest job")?;
 
-    get_job(pool, result.last_insert_rowid())
+    get_analog_ingest_job(pool, result.last_insert_rowid())
         .await?
         .context("analog ingest job vanished after insert")
 }
 
-pub async fn get_job(pool: &SqlitePool, id: i64) -> Result<Option<AnalogIngestJob>> {
+pub async fn get_analog_ingest_job(pool: &SqlitePool, id: i64) -> Result<Option<AnalogIngestJob>> {
     let query = format!(
         "SELECT {ANALOG_INGEST_JOB_COLUMNS} FROM analog_ingest_jobs WHERE id = ?1"
     );
@@ -473,7 +473,7 @@ pub async fn get_job(pool: &SqlitePool, id: i64) -> Result<Option<AnalogIngestJo
     Ok(job)
 }
 
-pub async fn list_jobs_for_user(pool: &SqlitePool, user_id: i64) -> Result<Vec<AnalogIngestJob>> {
+pub async fn list_analog_ingest_jobs_for_user(pool: &SqlitePool, user_id: i64) -> Result<Vec<AnalogIngestJob>> {
     let query = format!(
         "SELECT {ANALOG_INGEST_JOB_COLUMNS} FROM analog_ingest_jobs WHERE user_id = ?1 ORDER BY created_at DESC"
     );
@@ -485,7 +485,7 @@ pub async fn list_jobs_for_user(pool: &SqlitePool, user_id: i64) -> Result<Vec<A
     Ok(jobs)
 }
 
-pub async fn claim_next_queued_job(pool: &SqlitePool) -> Result<Option<AnalogIngestJob>> {
+pub async fn claim_next_queued_analog_ingest_job(pool: &SqlitePool) -> Result<Option<AnalogIngestJob>> {
     let mut tx = pool.begin().await.context("failed to begin claim transaction")?;
 
     let select_query = format!(
@@ -525,10 +525,10 @@ pub async fn claim_next_queued_job(pool: &SqlitePool) -> Result<Option<AnalogIng
         .await
         .context("failed to commit analog ingest job claim")?;
 
-    get_job(pool, job.id).await
+    get_analog_ingest_job(pool, job.id).await
 }
 
-pub async fn update_job_status(
+pub async fn update_analog_ingest_job_status(
     pool: &SqlitePool,
     id: i64,
     status: &str,
@@ -550,7 +550,7 @@ pub async fn update_job_status(
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn clear_secure_id(pool: &SqlitePool, id: i64) -> Result<bool> {
+pub async fn clear_analog_ingest_secure_id(pool: &SqlitePool, id: i64) -> Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE analog_ingest_jobs
@@ -565,7 +565,7 @@ pub async fn clear_secure_id(pool: &SqlitePool, id: i64) -> Result<bool> {
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn find_done_job(
+pub async fn find_done_analog_ingest_job(
     pool: &SqlitePool,
     user_id: i64,
     order_number: &str,

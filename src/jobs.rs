@@ -172,7 +172,7 @@ pub fn spawn_analog_ingest_worker(state: AppState) {
 }
 
 async fn run_ingest_cycle(state: &AppState) -> anyhow::Result<()> {
-    while let Some(job) = db::claim_next_queued_job(&state.db).await? {
+    while let Some(job) = db::claim_next_queued_analog_ingest_job(&state.db).await? {
         if let Err(err) = process_ingest_job(state, job).await {
             tracing::error!(?err, "ingest job processing failed unexpectedly");
         }
@@ -189,7 +189,7 @@ async fn process_ingest_job(state: &AppState, job: AnalogIngestJob) -> anyhow::R
     if let Err(err) = &result {
         let message = format!("{err:#}");
         tracing::error!(job_id, %message, "analog ingest job failed");
-        if let Err(db_err) = db::update_job_status(
+        if let Err(db_err) = db::update_analog_ingest_job_status(
             &state.db,
             job_id,
             ANALOG_INGEST_STATUS_FAILED,
@@ -240,7 +240,7 @@ async fn process_ingest_job_inner(
         .await
         .map_err(map_dm_error)?;
 
-    db::update_job_status(&state.db, job.id, ANALOG_INGEST_STATUS_LABELING, None).await?;
+    db::update_analog_ingest_job_status(&state.db, job.id, ANALOG_INGEST_STATUS_LABELING, None).await?;
 
     tokio::fs::create_dir_all(&images_dir).await?;
     let image_paths = dm_analog::extract_zip(&zip_path, &images_dir).map_err(map_dm_error)?;
@@ -250,7 +250,7 @@ async fn process_ingest_job_inner(
             .map_err(|err| anyhow::anyhow!("EXIF stamp failed for {}: {err}", path.display()))?;
     }
 
-    db::update_job_status(&state.db, job.id, ANALOG_INGEST_STATUS_UPLOADING, None).await?;
+    db::update_analog_ingest_job_status(&state.db, job.id, ANALOG_INGEST_STATUS_UPLOADING, None).await?;
 
     let client = PhotoPrismClient::new(
         pp.base_url.clone().unwrap(),
@@ -271,8 +271,8 @@ async fn process_ingest_job_inner(
         .await
         .map_err(|err| anyhow::anyhow!("PhotoPrism upload failed: {err}"))?;
 
-    db::clear_secure_id(&state.db, job.id).await?;
-    db::update_job_status(&state.db, job.id, ANALOG_INGEST_STATUS_DONE, None).await?;
+    db::clear_analog_ingest_secure_id(&state.db, job.id).await?;
+    db::update_analog_ingest_job_status(&state.db, job.id, ANALOG_INGEST_STATUS_DONE, None).await?;
 
     tracing::info!(job_id = job.id, order = %job.order_number, "analog ingest job completed");
     Ok(())
