@@ -4,6 +4,8 @@
 
 Personal web app for tracking **dm Foto** print orders. Users sign in with Discord, submit an order number (`NNNNNN-NNNNNN`), and get status from the public dm spot API. When an order is not ready yet (`ERROR` / not initialized), the site can open a **ticket** and watch until pickup-ready, then notify the user via Discord DM.
 
+Logged-in users can also queue **dm analog** ingest jobs: download a CEWE photo pack with order + Secure-ID, stamp a camera label into EXIF, and upload into a configured **PhotoPrism** instance (REQ-005).
+
 Admin area (password-gated) lists users, can refresh/simulate/delete tickets, and manage users via JSON API.
 
 ## Product goals
@@ -13,6 +15,7 @@ Admin area (password-gated) lists users, can refresh/simulate/delete tickets, an
 - Persistent tickets for orders that are not yet in the pipeline.
 - Background refresh (~every 3 hours) + optional admin “refresh now”.
 - Discord DM when a watched ticket becomes done (`DELIVERED` / `PICKED_UP`).
+- Analog ingest: CEWE download → EXIF camera label → PhotoPrism import, with job status in the UI.
 - HTMX-friendly UI: fragments + out-of-band ticket list swaps.
 
 ## Non-goals (current)
@@ -49,7 +52,13 @@ Loaded in `src/config.rs` from process env / `.env`:
 | `DM_KEY_ACCOUNT_ID` | no | Default `1320` (dm Germany) |
 | `ADMIN_PASSWORD` | yes | Admin login |
 | `SESSION_SECRET` | yes | ≥64 bytes, signs cookies |
+| `PHOTOPRISM_BASE_URL` | no* | PhotoPrism base URL (*required for analog ingest) |
+| `PHOTOPRISM_APP_PASSWORD` | no* | PhotoPrism app password |
+| `PHOTOPRISM_USER_UID` | no* | PhotoPrism user UID for imports |
+| `PHOTOPRISM_DEFAULT_ALBUM` | no | Fallback album when job has none |
+| `PHOTOPRISM_VERIFY_TLS` | no | Default `true` |
+| `ANALOG_INGEST_DIR` | no | Temp work dir (default `data/ingest`) |
 
 ## Entry point
 
-`src/main.rs`: load config → SQLite pool + migrations → session store → AppState → spawn ticket refresher → Axum router → serve.
+`src/main.rs`: load config → SQLite pool + migrations → session store → AppState → spawn ticket refresher + analog ingest worker → Axum router → serve.

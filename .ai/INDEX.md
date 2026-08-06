@@ -20,7 +20,7 @@
 | Web | Axum + Askama + HTMX |
 | DB | SQLite via SQLx, migrations in `migrations/` |
 | Auth | Discord OAuth (users) + `ADMIN_PASSWORD` session flag (admin) |
-| External APIs | Discord OAuth/Bot API, dm Foto `spot.photoprintit.com`, dm analog download (CEWE), PhotoPrism `/api/v1` (planned REQ-005) |
+| External APIs | Discord OAuth/Bot API, dm Foto `spot.photoprintit.com`, dm analog download (CEWE `api.cewe-myphotos.com`), PhotoPrism `/api/v1` (REQ-005) |
 | Default listen | `127.0.0.1:8080` |
 | DB file | `data/app.db` (gitignored) |
 | Secrets | `.env` (never commit) — see `.env.example` |
