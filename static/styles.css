@@ -588,7 +588,41 @@ table.users th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.ingest-form { margin: 1rem 0 1.5rem; }
+.ingest-jobs {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+.ingest-jobs th,
+.ingest-jobs td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.ingest-jobs th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ingest-form {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+@media (min-width: 560px) {
+  .ingest-form {
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+  }
+  .ingest-form button[type="submit"] {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
 
 .ingest-jobs .ingest-error {
   margin-top: 0.35rem;

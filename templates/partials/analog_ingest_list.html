@@ -1,7 +1,10 @@
 {% if jobs.is_empty() %}
-  <p class="muted">Noch keine Import-Aufträge.</p>
+  <p class="empty-state">
+    <strong>Noch keine Import-Aufträge</strong>
+    Formular ausfüllen, um einen Analog-Import zu starten.
+  </p>
 {% else %}
-  <table class="users ingest-jobs">
+  <table class="ingest-jobs">
     <thead>
       <tr>
         <th>Auftrag</th>
@@ -21,7 +24,7 @@
               <div class="error ingest-error">{{ err }}</div>
             {% endif %}
           </td>
-          <td><code>{{ job.updated_at }}</code></td>
+          <td>{{ job.updated_at.format("%d.%m.%Y %H:%M") }}</td>
         </tr>
       {% endfor %}
     </tbody>
