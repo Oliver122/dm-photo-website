@@ -13,12 +13,13 @@ Each `REQ-*.md` is short (~30–100 lines):
 - **ID / title / status** (`accepted` | `planned`)
 - **Goal**
 - **Acceptance criteria** (checkboxes)
-- **Tests** (required automated coverage; IDs like `T-005-a` — must pass `cargo test`)
+- **Tests** (required automated coverage; IDs like `T-005-a` / `ST-008-a` — must pass `cargo test`)
+  - Mark each row **+/-** (positive happy path / negative rejection)
 - **Out of scope**
 - **Touches** (implementation paths)
 - **Depends on** (other REQ ids)
 
-Tests live next to modules (`#[cfg(test)]`) or as `tokio::test` DB tests. Image builds run `cargo test` in the Dockerfile builder stage.
+**Unit tests** live next to modules (`#[cfg(test)]`). **System tests** (REQ-008) hit the real Axum router + temp DB in `src/system_tests.rs`. Image builds run `cargo test` in the Dockerfile builder stage.
 
 ## Status
 

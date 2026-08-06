@@ -2,15 +2,17 @@ use std::path::{Path, PathBuf};
 
 use rand::RngCore;
 use reqwest::multipart::{Form, Part};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Client for PhotoPrism `/api/v1` upload → import flow.
+/// Client for PhotoPrism `/api/v1` session + upload → import flow.
 #[derive(Debug, Clone)]
 pub struct PhotoPrismClient {
     base_url: String,
-    app_password: String,
-    user_uid: String,
+    username: String,
+    password: String,
+    /// Optional expected UID; session `user.UID` is preferred for upload paths.
+    expected_user_uid: Option<String>,
     http: reqwest::Client,
 }
 
@@ -26,10 +28,33 @@ pub enum PhotoPrismError {
     },
     #[error("network error talking to PhotoPrism: {0}")]
     Network(#[from] reqwest::Error),
+    #[error("PhotoPrism session login failed (status {status}): {body}")]
+    SessionLogin { status: u16, body: String },
+    #[error("PhotoPrism session response missing access_token or user.UID")]
+    SessionIncomplete,
     #[error("PhotoPrism stage upload failed (status {status}): {body}")]
     StageUpload { status: u16, body: String },
     #[error("PhotoPrism import commit failed (status {status}): {body}")]
     CommitImport { status: u16, body: String },
+}
+
+#[derive(Debug, Serialize)]
+struct SessionLoginBody<'a> {
+    username: &'a str,
+    password: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionUser {
+    #[serde(rename = "UID")]
+    uid: String,
+}
+
+/// Minimal fields from `POST /api/v1/session` needed for uploads.
+#[derive(Debug, Deserialize)]
+pub struct SessionResponse {
+    access_token: String,
+    user: SessionUser,
 }
 
 #[derive(Debug, Serialize)]
@@ -38,11 +63,18 @@ struct ImportBody<'a> {
     albums: Option<&'a [String]>,
 }
 
+#[derive(Debug)]
+struct ActiveSession {
+    access_token: String,
+    user_uid: String,
+}
+
 impl PhotoPrismClient {
     pub fn new(
         base_url: impl Into<String>,
-        app_password: impl Into<String>,
-        user_uid: impl Into<String>,
+        username: impl Into<String>,
+        password: impl Into<String>,
+        expected_user_uid: Option<String>,
         verify_tls: bool,
     ) -> Result<Self, PhotoPrismError> {
         let base_url = base_url.into().trim_end_matches('/').to_string();
@@ -53,15 +85,17 @@ impl PhotoPrismClient {
 
         Ok(Self {
             base_url,
-            app_password: app_password.into(),
-            user_uid: user_uid.into(),
+            username: username.into(),
+            password: password.into(),
+            expected_user_uid,
             http,
         })
     }
 
     /// Stage `paths` via multipart POST, then PUT to import/index.
     ///
-    /// `album_opt` is passed as the optional `albums` array (UID or title).
+    /// Authenticates with `POST /api/v1/session` and uses the returned
+    /// `access_token` as Bearer. `album_opt` is passed as optional `albums`.
     pub async fn upload_files(
         &self,
         paths: &[PathBuf],
@@ -71,22 +105,73 @@ impl PhotoPrismClient {
             return Err(PhotoPrismError::EmptyPaths);
         }
 
+        let session = self.create_session().await?;
         let token = generate_upload_token();
         let upload_url = format!(
             "{}/api/v1/users/{}/upload/{}",
-            self.base_url, self.user_uid, token
+            self.base_url, session.user_uid, token
         );
 
-        for path in paths {
-            self.stage_file(&upload_url, path).await?;
+        let result = async {
+            for path in paths {
+                self.stage_file(&upload_url, path, &session.access_token)
+                    .await?;
+            }
+            self.commit_import(&upload_url, album_opt, &session.access_token)
+                .await?;
+            Ok(())
         }
+        .await;
 
-        self.commit_import(&upload_url, album_opt).await?;
-
-        Ok(())
+        self.delete_session(&session.access_token).await;
+        result
     }
 
-    async fn stage_file(&self, upload_url: &str, path: &Path) -> Result<(), PhotoPrismError> {
+    async fn create_session(&self) -> Result<ActiveSession, PhotoPrismError> {
+        let url = format!("{}/api/v1/session", self.base_url);
+        let response = self
+            .http
+            .post(&url)
+            .json(&SessionLoginBody {
+                username: &self.username,
+                password: &self.password,
+            })
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(PhotoPrismError::SessionLogin { status, body });
+        }
+
+        let parsed: SessionResponse = response
+            .json()
+            .await
+            .map_err(PhotoPrismError::Network)?;
+        let session = active_session_from_response(parsed, self.expected_user_uid.as_deref())?;
+        Ok(session)
+    }
+
+    async fn delete_session(&self, access_token: &str) {
+        let url = format!("{}/api/v1/session", self.base_url);
+        if let Err(err) = self
+            .http
+            .delete(&url)
+            .bearer_auth(access_token)
+            .send()
+            .await
+        {
+            tracing::debug!(error = %err, "PhotoPrism session logout failed (ignored)");
+        }
+    }
+
+    async fn stage_file(
+        &self,
+        upload_url: &str,
+        path: &Path,
+        access_token: &str,
+    ) -> Result<(), PhotoPrismError> {
         let bytes = tokio::fs::read(path).await.map_err(|source| PhotoPrismError::ReadFile {
             path: path.display().to_string(),
             source,
@@ -108,7 +193,7 @@ impl PhotoPrismClient {
         let response = self
             .http
             .post(upload_url)
-            .bearer_auth(&self.app_password)
+            .bearer_auth(access_token)
             .multipart(form)
             .send()
             .await?;
@@ -126,6 +211,7 @@ impl PhotoPrismClient {
         &self,
         upload_url: &str,
         album_opt: Option<&str>,
+        access_token: &str,
     ) -> Result<(), PhotoPrismError> {
         let albums = album_opt.map(|title| vec![title.to_string()]);
         let body = ImportBody {
@@ -135,7 +221,7 @@ impl PhotoPrismClient {
         let response = self
             .http
             .put(upload_url)
-            .bearer_auth(&self.app_password)
+            .bearer_auth(access_token)
             .json(&body)
             .send()
             .await?;
@@ -150,11 +236,39 @@ impl PhotoPrismClient {
     }
 }
 
-/// Client-generated upload session token (random hex).
+fn active_session_from_response(
+    parsed: SessionResponse,
+    expected_user_uid: Option<&str>,
+) -> Result<ActiveSession, PhotoPrismError> {
+    if parsed.access_token.is_empty() || parsed.user.uid.is_empty() {
+        return Err(PhotoPrismError::SessionIncomplete);
+    }
+
+    if let Some(expected) = expected_user_uid {
+        if expected != parsed.user.uid {
+            tracing::warn!(
+                expected,
+                got = %parsed.user.uid,
+                "PHOTOPRISM_USER_UID does not match session user.UID; using session UID"
+            );
+        }
+    }
+
+    Ok(ActiveSession {
+        access_token: parsed.access_token,
+        user_uid: parsed.user.uid,
+    })
+}
+
+/// Client-generated upload batch token (PhotoPrism UI: 7× `[a-z0-9]`).
 pub fn generate_upload_token() -> String {
-    let mut bytes = [0u8; 8];
+    const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+    let mut bytes = [0u8; 7];
     rand::thread_rng().fill_bytes(&mut bytes);
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    bytes
+        .iter()
+        .map(|b| ALPHABET[(*b as usize) % ALPHABET.len()] as char)
+        .collect()
 }
 
 #[cfg(test)]
@@ -162,10 +276,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn upload_token_is_hex() {
+    fn upload_token_matches_photoprism_shape() {
         let token = generate_upload_token();
-        assert_eq!(token.len(), 16);
-        assert!(token.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(token.len(), 7);
+        assert!(token.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
     }
 
     #[test]
@@ -173,5 +287,26 @@ mod tests {
         let a = generate_upload_token();
         let b = generate_upload_token();
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn parse_session_response_extracts_token_and_uid() {
+        let json = r#"{
+            "access_token": "tok-abc",
+            "status": "success",
+            "user": {"ID": 1, "UID": "utexva5sbdnpvgc0", "Name": "admin"}
+        }"#;
+        let parsed: SessionResponse = serde_json::from_str(json).expect("parse");
+        let session = active_session_from_response(parsed, Some("other")).expect("session");
+        assert_eq!(session.access_token, "tok-abc");
+        assert_eq!(session.user_uid, "utexva5sbdnpvgc0");
+    }
+
+    #[test]
+    fn parse_session_rejects_empty_token() {
+        let json = r#"{"access_token":"","user":{"UID":"u1"}}"#;
+        let parsed: SessionResponse = serde_json::from_str(json).expect("parse");
+        let err = active_session_from_response(parsed, None).unwrap_err();
+        assert!(matches!(err, PhotoPrismError::SessionIncomplete));
     }
 }

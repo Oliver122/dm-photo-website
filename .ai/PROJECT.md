@@ -53,8 +53,9 @@ Loaded in `src/config.rs` from process env / `.env`:
 | `ADMIN_PASSWORD` | yes | Admin login |
 | `SESSION_SECRET` | yes | ≥64 bytes, signs cookies |
 | `PHOTOPRISM_BASE_URL` | no* | PhotoPrism base URL (*required for analog ingest) |
-| `PHOTOPRISM_APP_PASSWORD` | no* | PhotoPrism app password |
-| `PHOTOPRISM_USER_UID` | no* | PhotoPrism user UID for imports |
+| `PHOTOPRISM_USERNAME` | no* | PhotoPrism login username for `POST /api/v1/session` |
+| `PHOTOPRISM_APP_PASSWORD` | no* | Password / app password for session login |
+| `PHOTOPRISM_USER_UID` | no | Optional; upload uses session `user.UID` (warn if mismatch) |
 | `PHOTOPRISM_DEFAULT_ALBUM` | no | Fallback album when job has none |
 | `PHOTOPRISM_VERIFY_TLS` | no | Default `true` |
 | `ANALOG_INGEST_DIR` | no | Temp work dir (default `data/ingest`) |

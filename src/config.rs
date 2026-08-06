@@ -4,7 +4,9 @@ use std::{env, path::PathBuf};
 #[derive(Debug, Clone)]
 pub struct PhotoPrismConfig {
     pub base_url: Option<String>,
+    pub username: Option<String>,
     pub app_password: Option<String>,
+    /// Optional; upload uses session `user.UID`. If set and mismatched, warn only.
     pub user_uid: Option<String>,
     pub default_album: Option<String>,
     pub verify_tls: bool,
@@ -15,11 +17,11 @@ impl PhotoPrismConfig {
         self.base_url
             .as_ref()
             .is_some_and(|u| !u.is_empty())
+            && self.username.as_ref().is_some_and(|u| !u.is_empty())
             && self
                 .app_password
                 .as_ref()
                 .is_some_and(|p| !p.is_empty())
-            && self.user_uid.as_ref().is_some_and(|u| !u.is_empty())
     }
 }
 
@@ -97,6 +99,7 @@ impl Config {
 
         let photoprism = PhotoPrismConfig {
             base_url: optional_env("PHOTOPRISM_BASE_URL"),
+            username: optional_env("PHOTOPRISM_USERNAME"),
             app_password: optional_env("PHOTOPRISM_APP_PASSWORD"),
             user_uid: optional_env("PHOTOPRISM_USER_UID"),
             default_album: optional_env("PHOTOPRISM_DEFAULT_ALBUM"),

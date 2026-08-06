@@ -17,11 +17,12 @@ Users authenticate via Discord OAuth; admins via a separate password session fla
 
 ## Tests
 
-| ID | Case | Where |
-|----|------|--------|
-| T-001-a | Admin password match / reject wrong / reject different length | `src/auth/admin.rs` |
+| ID | +/- | Case | Where |
+|----|-----|------|--------|
+| T-001-a | + | Admin password matches | `src/auth/admin.rs` |
+| T-001-b | − | Wrong password / different length rejected | `src/auth/admin.rs` |
 
-- [x] T-001-a
+- [x] T-001-a, T-001-b
 
 ## Out of scope
 

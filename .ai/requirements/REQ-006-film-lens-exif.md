@@ -51,15 +51,17 @@ Preset fields:
 
 ## Tests
 
-| ID | Case | Where |
-|----|------|--------|
-| T-006-a | Parse/validate ISO, focal mm, aperture (accept/reject) | `camera_exif` / parser |
-| T-006-b | Stamp writes ISO + FocalLength + FNumber on fixture JPEG | `camera_exif` |
-| T-006-c | Job create persists ISO/lens/camera columns | `db` |
-| T-006-d | Preset create / list / unique name per user / delete | `db` |
-| T-006-e | Selecting preset returns field payload for form fill | handler or db |
+| ID | +/- | Case | Where |
+|----|-----|------|--------|
+| T-006-a | +/− | ISO / focal / aperture accept and reject | parser |
+| T-006-b | + | Stamp ISO + FocalLength + FNumber on JPEG | `camera_exif` |
+| T-006-c | + | Job persists ISO/lens/camera columns | `db` |
+| T-006-d | + | Preset create / list / delete | `db` |
+| T-006-e | − | Duplicate preset name per user rejected | `db` |
+| ST-006-a | + | Authenticated create ingest with preset fields (when implemented) | `system_tests` |
+| ST-006-b | − | Invalid ISO on create → 400 (when implemented) | `system_tests` |
 
-- [ ] T-006-a … T-006-e
+- [ ] T-006-a … T-006-e, ST-006-*
 
 ## Out of scope
 

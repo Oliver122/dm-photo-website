@@ -32,15 +32,16 @@ Let logged-in users check dm Foto order status, watch ERROR/open orders via tick
 
 ## Tests
 
-| ID | Case | Where |
-|----|------|--------|
-| T-002-a | Order number validation accept/reject | `src/dm_order.rs` |
-| T-002-b | READY/DONE state helpers | `src/dm_order.rs` |
-| T-002-c | Timeline labels (home vs pickup) | `src/dm_order.rs` |
-| T-002-d | Parse real ERROR payload fixture | `src/dm_order.rs` |
-| T-002-e | `Ticket::completed_before` archive cutoff | `src/models.rs` |
+| ID | +/- | Case | Where |
+|----|-----|------|--------|
+| T-002-a | + | Valid order number accepted | `src/dm_order.rs` |
+| T-002-b | − | Bad order numbers rejected | `src/dm_order.rs` |
+| T-002-c | + | READY/DONE helpers | `src/dm_order.rs` |
+| T-002-d | + | Timeline labels (home vs pickup) | `src/dm_order.rs` |
+| T-002-e | + | Parse ERROR payload fixture | `src/dm_order.rs` |
+| T-002-f | +/− | `completed_before` true when old / false when recent or open | `src/models.rs` |
 
-- [x] T-002-a … T-002-e
+- [x] T-002-a … T-002-f
 
 ## Out of scope
 

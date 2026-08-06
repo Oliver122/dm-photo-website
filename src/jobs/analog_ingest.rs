@@ -114,8 +114,9 @@ async fn process_ingest_job_inner(
 
     let client = PhotoPrismClient::new(
         pp.base_url.clone().unwrap(),
+        pp.username.clone().unwrap(),
         pp.app_password.clone().unwrap(),
-        pp.user_uid.clone().unwrap(),
+        pp.user_uid.clone(),
         pp.verify_tls,
     )
     .context("failed to build PhotoPrism client")?;

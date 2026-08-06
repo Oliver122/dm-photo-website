@@ -29,12 +29,13 @@ Persist app state in SQLite with additive migrations; keep secrets and DB files 
 
 ## Tests
 
-| ID | Case | Where |
-|----|------|--------|
-| T-004-a | Migrations apply on empty SQLite (`:memory:` or temp file) | `src/db.rs` |
-| T-004-b | Analog ingest job create + find_done + clear secure_id | `src/db.rs` |
+| ID | +/- | Case | Where |
+|----|-----|------|--------|
+| T-004-a | + | Migrations apply on fresh SQLite | `src/db.rs` |
+| T-004-b | + | Analog job create → done → clear secure_id | `src/db.rs` |
+| T-004-c | − | After done, `find_done` returns row (re-import guard signal) | `src/db.rs` |
 
-- [x] T-004-a … T-004-b
+- [x] T-004-a … T-004-c
 
 ## Out of scope
 

@@ -4,7 +4,7 @@ Use before finishing a feature or PR.
 
 ## Build / verify
 
-- [ ] `cargo test` (required — covers REQ **Tests** sections)
+- [ ] `cargo test` (required — unit `T-*` and system `ST-*`, including +/- cases)
 - [ ] `cargo check`
 - [ ] New routes registered in `src/main.rs`
 - [ ] New SQL only via `db.rs` + migration if schema changed

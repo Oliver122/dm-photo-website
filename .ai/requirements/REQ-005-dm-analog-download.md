@@ -30,8 +30,8 @@ Example credentials (from the slip / [download page](https://foto.dm.de/fotos/an
 
 ### PhotoPrism
 
-- [x] Configurable base URL + auth (app password + user UID) via env — see `.env.example`.
-- [x] Upload/import via PhotoPrism REST (`photoprism.rs`: stage upload POST then import commit).
+- [x] Configurable base URL + auth via env — session login (`PHOTOPRISM_USERNAME` + `PHOTOPRISM_APP_PASSWORD`), then Bearer `access_token` for upload; optional `PHOTOPRISM_USER_UID` check — see `.env.example`.
+- [x] Upload/import via PhotoPrism REST (`photoprism.rs`: `POST /session` → stage upload POST → import commit PUT).
 - [x] Optional album name for the ingest batch (`album` column + `PHOTOPRISM_DEFAULT_ALBUM` fallback).
 
 ### UX
@@ -42,15 +42,18 @@ Example credentials (from the slip / [download page](https://foto.dm.de/fotos/an
 
 ## Tests
 
-| ID | Case | Where |
-|----|------|--------|
-| T-005-a | Order id + Secure-ID validation | `src/dm_analog.rs` |
-| T-005-b | ZIP extract images; reject empty / skip non-images / block `..` | `src/dm_analog.rs` |
-| T-005-c | Camera label → Make/Model split | `src/camera_exif.rs` |
-| T-005-d | PhotoPrism upload token hex length | `src/photoprism.rs` |
-| T-005-e | German status labels on `AnalogIngestJob` | `src/models.rs` |
+| ID | +/- | Case | Where |
+|----|-----|------|--------|
+| T-005-a | + | Valid order id + Secure-ID | `src/dm_analog.rs` |
+| T-005-b | − | Invalid order id / Secure-ID rejected | `src/dm_analog.rs` |
+| T-005-c | + | ZIP extract keeps images | `src/dm_analog.rs` |
+| T-005-d | − | Empty ZIP / path traversal skipped or rejected | `src/dm_analog.rs` |
+| T-005-e | +/− | Camera label split / empty rejected | `src/camera_exif.rs` |
+| T-005-f | + | PhotoPrism upload token hex | `src/photoprism.rs` |
+| T-005-g | + | German status labels | `src/models.rs` |
+| ST-008-e | − | Anonymous HTMX list ingest → 401 | `src/system_tests.rs` |
 
-- [x] T-005-a … T-005-e (T-005-b/e added with this change)
+- [x] T-005-a … T-005-g, ST-008-e
 
 ## Out of scope
 

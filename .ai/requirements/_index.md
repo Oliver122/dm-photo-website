@@ -11,6 +11,7 @@ Open by **REQ id** — do not dump this folder into context. See [`README.md`](R
 | REQ-005 | DM analog download → camera EXIF → PhotoPrism | accepted | [REQ-005-dm-analog-download.md](REQ-005-dm-analog-download.md) |
 | REQ-006 | Film ISO + lens EXIF + named gear presets | planned | [REQ-006-film-lens-exif.md](REQ-006-film-lens-exif.md) |
 | REQ-007 | Ingest preview + rotate before PhotoPrism import | planned | [REQ-007-ingest-preview-rotate.md](REQ-007-ingest-preview-rotate.md) |
+| REQ-008 | System tests (HTTP +/- + DB flows) | accepted | [REQ-008-system-tests.md](REQ-008-system-tests.md) |
 | REQ-010 | Container image (Dockerfile) | planned | [REQ-010-container-image.md](REQ-010-container-image.md) |
 | REQ-011 | Artifactory build/push script + env | planned | [REQ-011-artifactory-push.md](REQ-011-artifactory-push.md) |
 | REQ-012 | App Compose (run from Artifactory) | planned | [REQ-012-app-compose.md](REQ-012-app-compose.md) |

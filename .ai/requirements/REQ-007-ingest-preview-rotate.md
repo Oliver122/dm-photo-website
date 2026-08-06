@@ -32,13 +32,15 @@ After CEWE download + ZIP extract (REQ-005), show a **preview** of the scanned f
 
 ## Tests
 
-| ID | Case | Where |
-|----|------|--------|
-| T-007-a | Rotate helper applies 90° and is invertible (4× → identity) | image util module |
-| T-007-b | Preview path resolution rejects traversal | handler or util |
-| T-007-c | Job status transition: queued→…→preview; confirm → labeling path (db/unit) | `db` / jobs |
+| ID | +/- | Case | Where |
+|----|-----|------|--------|
+| T-007-a | + | Rotate 90° four times → identity | image util |
+| T-007-b | − | Preview path traversal rejected | handler / util |
+| T-007-c | + | Status reaches `preview` then confirm → labeling | `db` / jobs |
+| ST-007-a | + | Owner can open preview gallery (when implemented) | `system_tests` |
+| ST-007-b | − | Non-owner / anonymous cannot fetch preview bytes | `system_tests` |
 
-- [ ] T-007-a … T-007-c
+- [ ] T-007-a … T-007-c, ST-007-*
 
 ## Out of scope
 
