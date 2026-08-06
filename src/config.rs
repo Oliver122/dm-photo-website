@@ -130,6 +130,10 @@ impl Config {
             analog_ingest_dir,
         })
     }
+
+    pub fn analog_ingest_work_dir(&self, job_id: i64) -> PathBuf {
+        self.analog_ingest_dir.join(job_id.to_string())
+    }
 }
 
 fn optional_env(key: &str) -> Option<String> {

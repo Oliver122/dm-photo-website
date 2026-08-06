@@ -6,7 +6,8 @@ use std::str::FromStr;
 
 use crate::models::{
     AnalogIngestJob, Ticket, User, ANALOG_INGEST_STATUS_DONE, ANALOG_INGEST_STATUS_DOWNLOADING,
-    ANALOG_INGEST_STATUS_QUEUED,
+    ANALOG_INGEST_STATUS_FAILED, ANALOG_INGEST_STATUS_LABELING, ANALOG_INGEST_STATUS_PREVIEW,
+    ANALOG_INGEST_STATUS_QUEUED, ANALOG_INGEST_STATUS_UPLOADING,
 };
 
 const ANALOG_INGEST_JOB_COLUMNS: &str = r#"
@@ -528,6 +529,94 @@ pub async fn claim_next_queued_analog_ingest_job(pool: &SqlitePool) -> Result<Op
     get_analog_ingest_job(pool, job.id).await
 }
 
+pub async fn claim_next_labeling_analog_ingest_job(pool: &SqlitePool) -> Result<Option<AnalogIngestJob>> {
+    let mut tx = pool.begin().await.context("failed to begin claim transaction")?;
+
+    let select_query = format!(
+        "SELECT {ANALOG_INGEST_JOB_COLUMNS} FROM analog_ingest_jobs WHERE status = ?1 ORDER BY created_at ASC LIMIT 1"
+    );
+    let job = sqlx::query_as::<_, AnalogIngestJob>(&select_query)
+        .bind(ANALOG_INGEST_STATUS_LABELING)
+        .fetch_optional(&mut *tx)
+        .await
+        .context("failed to query next labeling analog ingest job")?;
+
+    let Some(job) = job else {
+        tx.rollback().await.ok();
+        return Ok(None);
+    };
+
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET status = ?1, updated_at = datetime('now')
+        WHERE id = ?2 AND status = ?3
+        "#,
+    )
+    .bind(ANALOG_INGEST_STATUS_UPLOADING)
+    .bind(job.id)
+    .bind(ANALOG_INGEST_STATUS_LABELING)
+    .execute(&mut *tx)
+    .await
+    .context("failed to claim labeling analog ingest job")?;
+
+    if result.rows_affected() == 0 {
+        tx.rollback().await.ok();
+        return Ok(None);
+    }
+
+    tx.commit()
+        .await
+        .context("failed to commit labeling analog ingest job claim")?;
+
+    get_analog_ingest_job(pool, job.id).await
+}
+
+pub async fn confirm_analog_ingest_job(
+    pool: &SqlitePool,
+    id: i64,
+    user_id: i64,
+) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET status = ?1, updated_at = datetime('now')
+        WHERE id = ?2 AND user_id = ?3 AND status = ?4
+        "#,
+    )
+    .bind(ANALOG_INGEST_STATUS_LABELING)
+    .bind(id)
+    .bind(user_id)
+    .bind(ANALOG_INGEST_STATUS_PREVIEW)
+    .execute(pool)
+    .await
+    .context("failed to confirm analog ingest job")?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn cancel_analog_ingest_job(
+    pool: &SqlitePool,
+    id: i64,
+    user_id: i64,
+) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET status = ?1, secure_id = NULL, error_text = ?2, updated_at = datetime('now')
+        WHERE id = ?3 AND user_id = ?4 AND status = ?5
+        "#,
+    )
+    .bind(ANALOG_INGEST_STATUS_FAILED)
+    .bind("Abgebrochen")
+    .bind(id)
+    .bind(user_id)
+    .bind(ANALOG_INGEST_STATUS_PREVIEW)
+    .execute(pool)
+    .await
+    .context("failed to cancel analog ingest job")?;
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn update_analog_ingest_job_status(
     pool: &SqlitePool,
     id: i64,
@@ -587,7 +676,9 @@ pub async fn find_done_analog_ingest_job(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::ANALOG_INGEST_STATUS_FAILED;
+    use crate::models::{
+        ANALOG_INGEST_STATUS_FAILED, ANALOG_INGEST_STATUS_PREVIEW,
+    };
 
     async fn test_pool() -> (tempfile::TempDir, SqlitePool) {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -657,5 +748,82 @@ mod tests {
             .expect("done job");
         assert!(done.secure_id.is_none());
         assert_eq!(done.status, ANALOG_INGEST_STATUS_DONE);
+    }
+
+    #[tokio::test]
+    async fn analog_ingest_preview_confirm_moves_to_labeling() {
+        let (_dir, pool) = test_pool().await;
+        let user = upsert_discord_user(&pool, "456", "preview-user")
+            .await
+            .expect("user");
+
+        let job = create_analog_ingest_job(
+            &pool,
+            user.id,
+            "544850-103397",
+            "H5GGX3T6",
+            "Holga",
+            None,
+        )
+        .await
+        .expect("create job");
+
+        update_analog_ingest_job_status(&pool, job.id, ANALOG_INGEST_STATUS_PREVIEW, None)
+            .await
+            .unwrap();
+
+        assert!(
+            !confirm_analog_ingest_job(&pool, job.id, user.id + 1)
+                .await
+                .unwrap()
+        );
+
+        assert!(confirm_analog_ingest_job(&pool, job.id, user.id).await.unwrap());
+
+        let updated = get_analog_ingest_job(&pool, job.id)
+            .await
+            .unwrap()
+            .expect("job");
+        assert_eq!(updated.status, ANALOG_INGEST_STATUS_LABELING);
+
+        let claimed = claim_next_labeling_analog_ingest_job(&pool)
+            .await
+            .unwrap()
+            .expect("claimed");
+        assert_eq!(claimed.id, job.id);
+        assert_eq!(claimed.status, ANALOG_INGEST_STATUS_UPLOADING);
+    }
+
+    #[tokio::test]
+    async fn analog_ingest_cancel_from_preview_marks_failed_and_clears_secure_id() {
+        let (_dir, pool) = test_pool().await;
+        let user = upsert_discord_user(&pool, "789", "cancel-user")
+            .await
+            .expect("user");
+
+        let job = create_analog_ingest_job(
+            &pool,
+            user.id,
+            "544850-103398",
+            "H5GGX3T7",
+            "Pentax",
+            None,
+        )
+        .await
+        .expect("create job");
+
+        update_analog_ingest_job_status(&pool, job.id, ANALOG_INGEST_STATUS_PREVIEW, None)
+            .await
+            .unwrap();
+
+        assert!(cancel_analog_ingest_job(&pool, job.id, user.id).await.unwrap());
+
+        let updated = get_analog_ingest_job(&pool, job.id)
+            .await
+            .unwrap()
+            .expect("job");
+        assert_eq!(updated.status, ANALOG_INGEST_STATUS_FAILED);
+        assert!(updated.secure_id.is_none());
+        assert_eq!(updated.error_text.as_deref(), Some("Abgebrochen"));
     }
 }
