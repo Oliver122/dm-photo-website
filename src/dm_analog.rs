@@ -1,8 +1,11 @@
-use std::path::Path;
+use std::fs::File;
+use std::io::{copy, BufReader};
+use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
+use zip::ZipArchive;
 
 const API_BASE: &str = "https://api.cewe-myphotos.com/api/imageCD";
 const API_ACCESS_KEY: &str = "54a614716eb29ef3a3f004a6241e5e19";
@@ -29,6 +32,10 @@ pub enum DmAnalogError {
     Network(#[from] reqwest::Error),
     #[error("Dateifehler: {0}")]
     Io(#[from] std::io::Error),
+    #[error("ZIP konnte nicht gelesen werden: {0}")]
+    Zip(#[from] zip::result::ZipError),
+    #[error("ZIP enthält keine Bilder")]
+    EmptyZip,
     #[error("CEWE-API-Fehler (HTTP {status}): {detail}")]
     Api { status: u16, detail: String },
 }
@@ -175,6 +182,44 @@ pub async fn download_zip(
     file.flush().await?;
 
     Ok(())
+}
+
+fn is_image_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".tif")
+        || lower.ends_with(".tiff")
+        || lower.ends_with(".png")
+}
+
+/// Extract image files from `zip_path` into `dest_dir`. Returns absolute paths.
+pub fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<Vec<PathBuf>, DmAnalogError> {
+    std::fs::create_dir_all(dest_dir)?;
+    let file = File::open(zip_path)?;
+    let mut archive = ZipArchive::new(BufReader::new(file))?;
+    let mut images = Vec::new();
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        let name = entry.name().to_string();
+        if entry.is_dir() || name.contains("..") || !is_image_name(&name) {
+            continue;
+        }
+        let file_name = Path::new(&name)
+            .file_name()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(format!("image-{i}.jpg")));
+        let out_path = dest_dir.join(file_name);
+        let mut out = File::create(&out_path)?;
+        copy(&mut entry, &mut out)?;
+        images.push(out_path);
+    }
+
+    if images.is_empty() {
+        return Err(DmAnalogError::EmptyZip);
+    }
+    Ok(images)
 }
 
 #[cfg(test)]

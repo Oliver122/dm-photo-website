@@ -5,7 +5,8 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crate::models::{
-    AnalogIngestJob, ANALOG_INGEST_STATUS_DOWNLOADING, ANALOG_INGEST_STATUS_QUEUED, User,
+    AnalogIngestJob, ANALOG_INGEST_STATUS_DONE, ANALOG_INGEST_STATUS_DOWNLOADING,
+    ANALOG_INGEST_STATUS_QUEUED, User,
 };
 
 const ANALOG_INGEST_JOB_COLUMNS: &str = r#"
@@ -249,4 +250,23 @@ pub async fn clear_secure_id(pool: &SqlitePool, id: i64) -> Result<bool> {
     .await
     .context("failed to clear analog ingest job secure_id")?;
     Ok(result.rows_affected() > 0)
+}
+
+pub async fn find_done_job(
+    pool: &SqlitePool,
+    user_id: i64,
+    order_number: &str,
+) -> Result<Option<AnalogIngestJob>> {
+    let query = format!(
+        "SELECT {ANALOG_INGEST_JOB_COLUMNS} FROM analog_ingest_jobs \
+         WHERE user_id = ?1 AND order_number = ?2 AND status = ?3 LIMIT 1"
+    );
+    let job = sqlx::query_as::<_, AnalogIngestJob>(&query)
+        .bind(user_id)
+        .bind(order_number)
+        .bind(ANALOG_INGEST_STATUS_DONE)
+        .fetch_optional(pool)
+        .await
+        .context("failed to query done analog ingest job")?;
+    Ok(job)
 }

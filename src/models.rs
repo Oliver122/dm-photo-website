@@ -35,6 +35,18 @@ impl AnalogIngestJob {
     pub fn is_terminal(&self) -> bool {
         is_terminal_analog_ingest_status(&self.status)
     }
+
+    pub fn status_label_de(&self) -> &'static str {
+        match self.status.as_str() {
+            ANALOG_INGEST_STATUS_QUEUED => "Warteschlange",
+            ANALOG_INGEST_STATUS_DOWNLOADING => "Download",
+            ANALOG_INGEST_STATUS_LABELING => "Metadaten",
+            ANALOG_INGEST_STATUS_UPLOADING => "Upload",
+            ANALOG_INGEST_STATUS_DONE => "Fertig",
+            ANALOG_INGEST_STATUS_FAILED => "Fehler",
+            _ => "Unbekannt",
+        }
+    }
 }
 
 pub fn is_valid_analog_ingest_status(status: &str) -> bool {

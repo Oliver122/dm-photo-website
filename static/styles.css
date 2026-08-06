@@ -124,3 +124,26 @@ table.users th, table.users td {
   vertical-align: top;
 }
 table.users th { color: var(--muted); font-weight: 500; }
+
+.muted { color: var(--muted); }
+
+.ingest-form { margin: 1rem 0 1.5rem; }
+
+.ingest-jobs .ingest-error {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.status-done { border-color: #2ea043; color: #7ee08c; }
+.status-failed { border-color: var(--danger); color: #ff8e90; }
+.status-downloading,
+.status-labeling,
+.status-uploading { border-color: var(--accent); color: #aeb8ff; }

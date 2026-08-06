@@ -20,6 +20,8 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 | POST | `/admin/tickets/simulate` | admin | api | Create simulated ticket |
 | GET | `/api/me` | user | api | Current user JSON |
 | POST | `/api/dm/me` | user | api | Send test Discord DM |
+| GET | `/api/analog/ingest` | user | api | HTMX partial: analog ingest job list |
+| POST | `/api/analog/ingest` | user | api | Queue analog ingest job |
 | POST | `/api/order/check` | user | api | Lookup order; may create ticket |
 | POST | `/api/tickets` | user | api | Manual ticket create |
 | DELETE | `/api/tickets/:id` | user | api | Delete own ticket |
@@ -30,7 +32,7 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 
 ## Schema
 
-Migrations: `migrations/0001_init.sql` … `0005_ticket_label.sql`. Sessions table owned by `tower-sessions-sqlx-store`.
+Migrations: `migrations/0001_init.sql` … `0002_analog_ingest_jobs.sql`. Sessions table owned by `tower-sessions-sqlx-store`.
 
 ### `users`
 
@@ -59,6 +61,22 @@ Migrations: `migrations/0001_init.sql` … `0005_ticket_label.sql`. Sessions tab
 | `last_updated` | TEXT NULL | App always writes explicitly |
 | `completed_at` | TEXT NULL | |
 
+### `analog_ingest_jobs`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | INTEGER PK | |
+| `user_id` | INTEGER FK → users ON DELETE CASCADE | |
+| `order_number` | TEXT | `NNNNNN-NNNNNN` |
+| `secure_id` | TEXT NULL | Cleared after successful import |
+| `camera_label` | TEXT | User-supplied camera name |
+| `album_name` | TEXT NULL | Optional PhotoPrism album |
+| `status` | TEXT | `queued` / `downloading` / `labeling` / `uploading` / `done` / `failed` |
+| `error_text` | TEXT NULL | German/technical message on failure |
+| `created_at` / `updated_at` | TEXT | |
+
+Unique partial index on `(user_id, order_number)` where `status = 'done'` (idempotent re-import guard).
+
 ## Models
 
-Rust structs in `src/models.rs`: `User`, `Ticket` (+ `completed_before`).
+Rust structs in `src/models.rs`: `User`, `Ticket` (+ `completed_before`), `IngestJob`, `IngestJobStatus`.
