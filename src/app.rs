@@ -121,6 +121,7 @@ pub async fn build_state(config: Config, pool: sqlx::SqlitePool) -> Result<AppSt
         config: Arc::new(config),
         oauth: Arc::new(oauth),
         http,
+        preview_rotations: crate::preview_rotations::PreviewRotationStore::new(),
     })
 }
 

@@ -1,8 +1,8 @@
 # REQ-009 — Home UI overhaul (simpler; two style variants)
 
 - **ID:** REQ-009
-- **Status:** planned
-- **Decision:** Parent merges one chosen variant after you pick A or B.
+- **Status:** accepted (variant **A** film-strip chosen)
+- **Decision:** Variant A merged to `feat/dm-analog-ingest`; B abandoned.
 
 ## Goal
 

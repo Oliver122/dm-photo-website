@@ -5,6 +5,7 @@ use oauth2::basic::BasicClient;
 use sqlx::SqlitePool;
 
 use crate::config::Config;
+use crate::preview_rotations::PreviewRotationStore;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,6 +13,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub oauth: Arc<BasicClient>,
     pub http: reqwest::Client,
+    /// Preview rotate offsets (RAM); flushed to JPEG on confirm.
+    pub preview_rotations: PreviewRotationStore,
 }
 
 impl FromRef<AppState> for SqlitePool {

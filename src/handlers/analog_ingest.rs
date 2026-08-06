@@ -62,6 +62,8 @@ struct PreviewTemplate {
 struct PreviewImage {
     relative_path: String,
     file_name: String,
+    /// CSS degrees for instant preview (disk unchanged until confirm).
+    rotate_deg: i32,
 }
 
 pub async fn create_ingest_job(
@@ -217,6 +219,7 @@ pub async fn delete_ingest_job(
             if let Err(err) = remove_job_workdir(&work_dir).await {
                 tracing::warn!(job_id, ?err, "failed to remove ingest workdir after delete");
             }
+            state.preview_rotations.clear_job(job_id);
             tracing::info!(job_id, user_id = user.0.id, "analog ingest job deleted");
             list_ingest_jobs(user, State(state)).await
         }
@@ -319,19 +322,16 @@ pub async fn preview_rotate(
         return html_error(StatusCode::NOT_FOUND, "Datei nicht gefunden.");
     }
 
-    let rotate_result = match form.direction.trim().to_ascii_lowercase().as_str() {
-        "cw" => image_rotate::rotate_cw(&resolved),
-        "ccw" => image_rotate::rotate_ccw(&resolved),
+    let delta = match form.direction.trim().to_ascii_lowercase().as_str() {
+        "cw" => 1i8,
+        "ccw" => -1i8,
         _ => return html_error(StatusCode::BAD_REQUEST, "Ungültige Drehrichtung."),
     };
 
-    if let Err(err) = rotate_result {
-        tracing::error!(?err, job_id, path = %resolved.display(), "preview rotate failed");
-        return html_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Bild konnte nicht gedreht werden.",
-        );
-    }
+    // RAM only — no JPEG rewrite until confirm.
+    state
+        .preview_rotations
+        .add_quarter(job.id, file_path, delta);
 
     render_preview(&state, job).await
 }
@@ -341,8 +341,23 @@ pub async fn preview_confirm(
     State(state): State<AppState>,
     Path(job_id): Path<i64>,
 ) -> Response {
+    let job = match load_preview_job(&state, user.0.id, job_id).await {
+        Ok(job) => job,
+        Err(resp) => return resp,
+    };
+
+    let work_dir = job_work_dir(&state.config.analog_ingest_dir, job.id);
+    if let Err(err) = flush_preview_rotations_to_disk(&state, job.id, &work_dir) {
+        tracing::error!(?err, job_id, "failed to flush preview rotations");
+        return html_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Drehung konnte nicht gespeichert werden.",
+        );
+    }
+
     match db::confirm_analog_ingest_preview_for_user(&state.db, job_id, user.0.id).await {
         Ok(true) => {
+            state.preview_rotations.clear_job(job_id);
             tracing::info!(job_id, user_id = user.0.id, "analog ingest preview confirmed");
             list_ingest_jobs_clearing_preview(user, state).await
         }
@@ -371,6 +386,7 @@ pub async fn preview_cancel(
             if let Err(err) = remove_job_workdir(&work_dir).await {
                 tracing::warn!(job_id, ?err, "failed to remove preview workdir after cancel");
             }
+            state.preview_rotations.clear_job(job_id);
             tracing::info!(job_id, user_id = user.0.id, "analog ingest preview cancelled");
             list_ingest_jobs_clearing_preview(user, state).await
         }
@@ -442,17 +458,19 @@ async fn render_preview(state: &AppState, job: AnalogIngestJob) -> Response {
                 .next()
                 .unwrap_or(&relative_path)
                 .to_string();
+            let quarters = state
+                .preview_rotations
+                .get_quarter(job.id, &relative_path);
             PreviewImage {
                 relative_path,
                 file_name,
+                rotate_deg: i32::from(quarters) * 90,
             }
         })
         .collect();
 
-    let cache_bust = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0);
+    // Stable cache_bust: originals on disk don't change until confirm.
+    let cache_bust = job.id;
 
     PreviewTemplate {
         job,
@@ -460,6 +478,23 @@ async fn render_preview(state: &AppState, job: AnalogIngestJob) -> Response {
         cache_bust,
     }
     .into_response()
+}
+
+fn flush_preview_rotations_to_disk(
+    state: &AppState,
+    job_id: i64,
+    work_dir: &std::path::Path,
+) -> Result<(), String> {
+    for (relative_path, quarters) in state.preview_rotations.snapshot_job(job_id) {
+        if quarters == 0 {
+            continue;
+        }
+        let path = resolve_workdir_file(work_dir, &relative_path).map_err(|e| e.to_string())?;
+        for _ in 0..quarters {
+            image_rotate::rotate_cw(&path).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 fn html_error(status: StatusCode, message: &str) -> Response {

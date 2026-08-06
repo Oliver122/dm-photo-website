@@ -13,7 +13,8 @@
         <article class="film-frame" role="listitem">
           <div class="film-frame-img-wrap">
             <img
-              class="ingest-preview-img"
+              class="ingest-preview-img{% if image.rotate_deg != 0 %} is-rotated{% endif %}"
+              style="transform: rotate({{ image.rotate_deg }}deg)"
               src="/api/analog/ingest/{{ job.id }}/preview/file?path={{ image.relative_path }}&t={{ cache_bust }}"
               alt="{{ image.file_name }}"
               loading="lazy" />

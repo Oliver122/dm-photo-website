@@ -12,6 +12,7 @@ mod image_rotate;
 mod jobs;
 mod models;
 mod photoprism;
+mod preview_rotations;
 mod state;
 
 #[cfg(test)]

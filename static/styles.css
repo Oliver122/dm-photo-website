@@ -799,6 +799,8 @@ table.users th {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transition: transform 0.15s ease;
+  transform-origin: center center;
 }
 
 .film-frame-name {
