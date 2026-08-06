@@ -15,7 +15,7 @@ use crate::{
         session::{ADMIN_KEY, AdminUser, AuthUser, OAUTH_STATE_KEY, USER_ID_KEY},
     },
     db,
-    models::{Ticket, User},
+    models::{AnalogIngestJob, Ticket, User},
     state::AppState,
 };
 
@@ -29,6 +29,7 @@ struct IndexTemplate {
     photoprism_configured: bool,
     tickets: Vec<Ticket>,
     archived_tickets: Vec<Ticket>,
+    jobs: Vec<AnalogIngestJob>,
 }
 
 #[derive(Template)]
@@ -74,6 +75,12 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         Some(user) => tickets::load_user_ticket_lists(&state.db, user.id).await,
         None => (Vec::new(), Vec::new()),
     };
+    let jobs = match &current_user {
+        Some(user) => db::list_analog_ingest_jobs_for_user(&state.db, user.id)
+            .await
+            .unwrap_or_default(),
+        None => Vec::new(),
+    };
 
     IndexTemplate {
         current_user,
@@ -81,6 +88,7 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         photoprism_configured,
         tickets,
         archived_tickets,
+        jobs,
     }
 }
 
