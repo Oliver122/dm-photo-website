@@ -7,6 +7,7 @@ mod discord_bot;
 mod dm_analog;
 mod dm_order;
 mod handlers;
+mod image_rotate;
 mod jobs;
 mod models;
 mod photoprism;
