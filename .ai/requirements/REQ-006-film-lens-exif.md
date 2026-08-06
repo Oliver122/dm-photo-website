@@ -1,53 +1,81 @@
-# REQ-006 — Film ISO, lens EXIF & saved gear presets
+# REQ-006 — Cameras, lenses, film ISO & ticket → import
 
 - **ID:** REQ-006
 - **Status:** planned
 
 ## Goal
 
-When ingesting dm analog scans (REQ-005), let the user set **camera**, **film ISO**, and **lens / Objektiv** (e.g. `50mm` + `f/2.4`) for EXIF — and **save that combination once under a display name** so it can be **reselected** on later imports without retyping.
+Let users maintain **separate** libraries of **cameras** and **lenses** (not one combined preset), attach **camera + lens + film ISO** to a dm **ticket/order**, convert a ticket into an **analog import** with one action (Secure-ID prompted), and stamp camera / ISO / lens EXIF before PhotoPrism.
 
-Example preset name: `Canon AE-1 · Portra 400 · 50mm f/1.8`
+## Data model
 
-Preset fields:
+### `user_cameras` (per user)
 
-- Display name (required, unique per user)
-- Camera label (→ Make/Model, REQ-005)
-- ISO (e.g. `400`)
-- Focal length mm (e.g. `50`)
-- Aperture f-number (e.g. `2.4`)
+| Column | Notes |
+|--------|--------|
+| id, user_id | PK / FK |
+| label | Display + EXIF Make/Model split (REQ-005), unique per user (trim, case-insensitive) |
+| created_at | |
+
+### `user_lenses` (per user)
+
+| Column | Notes |
+|--------|--------|
+| id, user_id | PK / FK |
+| name | Display name, unique per user |
+| focal_mm | REAL > 0 |
+| aperture | REAL > 0 (f-number, e.g. 2.4) |
+| created_at | |
+
+### `tickets` additions
+
+- `camera_id` NULL FK → user_cameras
+- `lens_id` NULL FK → user_lenses
+- `film_iso` NULL INTEGER
+
+### `analog_ingest_jobs` additions
+
+- `camera_id` NULL, `lens_id` NULL, `film_iso` NULL INTEGER
+- Keep `camera_label` TEXT (denormalized at job create from selected camera for worker/EXIF)
+
+**ISO** lives on the **order/ticket and job** (film stock), not on camera/lens rows.
 
 ## Acceptance criteria
 
-### Capture (per ingest job)
+### Gear library page (`/gear`)
 
-- [ ] Ingest create form accepts **camera label** plus optional **ISO**, **focal length (mm)**, **aperture (f-number)**.
-- [ ] Persist values on `analog_ingest_jobs` (nullable ISO/focal/aperture; empty = do not stamp that tag).
-- [ ] Validate: ISO positive integer (e.g. 1–102400); focal length > 0; aperture > 0; camera label non-empty when stamping camera.
-- [ ] German labels: Kamera, Film-ISO, Brennweite (mm), Blende (z.B. 2.4).
+- [ ] Logged-in page: two lists — **Kameras** and **Objektive** — with add + delete.
+- [ ] Camera: label only (e.g. `Canon AE-1`).
+- [ ] Lens: name + Brennweite (mm) + Blende.
+- [ ] Validate; German labels; scoped to `user_id`.
 
-### Named presets (save once, reselect)
+### Ticket attach
 
-- [ ] User can **save** the current form values as a named preset (`analog_gear_presets` or equivalent), scoped to `user_id`.
-- [ ] Display name required; unique per user (case-insensitive trim).
-- [ ] Dropdown / select lists the user’s presets; choosing one **fills** camera, ISO, focal length, aperture (and does not submit the ingest by itself).
-- [ ] User can **update** an existing preset (same name overwrite or explicit “Speichern”) and **delete** a preset.
-- [ ] Presets survive across sessions; not shared between users.
-- [ ] Optional: “Als Preset speichern” next to the ingest form after filling fields once.
+- [ ] On each active ticket: select camera, lens, film ISO (optional fields) + Speichern.
+- [ ] Persist on ticket row.
 
-### EXIF stamp (before PhotoPrism upload)
+### Convert ticket → Import
 
-- [ ] Stamp camera Make/Model from camera label (existing REQ-005 path).
-- [ ] Stamp ISO → EXIF photographic sensitivity / ISO speed ratings.
-- [ ] Stamp focal length → EXIF `FocalLength` (mm).
-- [ ] Stamp aperture → EXIF `FNumber` (related tags if crate supports cleanly).
-- [ ] Apply same values to every image in the batch (roll-level metadata).
-- [ ] Do not clear unrelated existing tags.
+- [ ] Button **Importieren** on ticket (PhotoPrism configured).
+- [ ] Opens compact form: **Secure-ID** (required) + optional album; pre-filled camera/lens/ISO from ticket (editable).
+- [ ] Creates `analog_ingest_job` (`queued`) with denormalized `camera_label` + FKs/ISO; does not require retyping order number.
+- [ ] Blocked if a `done` job exists for that order (same as today) unless deleted first.
 
-### UX / jobs
+### Ingest form (home)
 
-- [ ] Job status list shows compact gear line when set: `Canon AE-1 · ISO 400 · 50mm f/2.4` (or preset name if linked).
-- [ ] Worker uses job columns during `labeling` (after REQ-007 confirm if that ships).
+- [ ] Prefer selects for camera + lens from library + Film-ISO; free-text camera label allowed as fallback if no cameras yet.
+- [ ] Job list shows compact gear: `Canon AE-1 · ISO 400 · 50mm f/2.4`.
+
+### EXIF (labeling stage)
+
+- [ ] Stamp Make/Model from camera label.
+- [ ] Stamp ISO when set; FocalLength + FNumber from lens when set.
+- [ ] Same values for every frame in the batch.
+
+## Defaults / decisions
+
+- Secure-ID is **not** stored on the ticket long-term; entered at convert time.
+- Combined named “presets” **out of scope** (replaced by separate camera + lens entities).
 
 ## Tests
 
@@ -55,29 +83,25 @@ Preset fields:
 |----|-----|------|--------|
 | T-006-a | +/− | ISO / focal / aperture accept and reject | parser |
 | T-006-b | + | Stamp ISO + FocalLength + FNumber on JPEG | `camera_exif` |
-| T-006-c | + | Job persists ISO/lens/camera columns | `db` |
-| T-006-d | + | Preset create / list / delete | `db` |
-| T-006-e | − | Duplicate preset name per user rejected | `db` |
-| ST-006-a | + | Authenticated create ingest with preset fields (when implemented) | `system_tests` |
-| ST-006-b | − | Invalid ISO on create → 400 (when implemented) | `system_tests` |
+| T-006-c | + | Camera/lens CRUD + unique per user | `db` |
+| T-006-d | + | Ticket gear save + convert creates job | `db` / handler |
+| T-006-e | − | Duplicate camera/lens name rejected | `db` |
+| ST-006-a | − | Convert without Secure-ID → 400 | `system_tests` |
 
-- [ ] T-006-a … T-006-e, ST-006-*
+- [ ] T-006-* / ST-006-*
 
 ## Out of scope
 
-- Per-frame different ISO/lens inside one ZIP.
-- Full EXIF editor (GPS, date overrides, etc.).
-- Shared / global presets across all users.
-- Auto-detect lens from CEWE ZIP metadata.
+- Per-frame ISO/lens inside one ZIP.
+- Shared gear across users.
+- Storing Secure-ID on tickets.
 
 ## Touches
 
-- Migrations: job columns + `analog_gear_presets` table
-- `src/camera_exif.rs`, `src/db.rs`, `src/models.rs`
-- `handlers/analog_ingest.rs` (+ preset routes), templates
-- `jobs/analog_ingest.rs`
-- `.ai/ROUTES-AND-DATA.md` when implemented
+- `migrations/0008_*.sql` (and maybe 0009)
+- `src/camera_exif.rs`, `db.rs`, `models.rs`, `jobs/analog_ingest.rs`
+- handlers: gear, tickets, analog_ingest; templates; `ROUTES-AND-DATA.md`
 
 ## Depends on
 
-- REQ-005 (analog ingest pipeline)
+- REQ-002, REQ-005, REQ-007 (preview before upload still applies)
