@@ -125,6 +125,9 @@ pub async fn create_ingest_job(
         &secure_id,
         &camera_label,
         album.as_deref(),
+        None,
+        None,
+        None,
     )
     .await
     {
