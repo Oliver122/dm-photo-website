@@ -1,10 +1,12 @@
 mod auth;
+mod camera_exif;
 mod config;
 mod db;
 mod dm_analog;
 mod discord_bot;
 mod handlers;
 mod models;
+mod photoprism;
 mod state;
 
 use std::sync::Arc;
