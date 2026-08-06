@@ -21,7 +21,7 @@
 | DB | SQLite via SQLx, migrations in `migrations/` |
 | Auth | Discord OAuth (users) + `ADMIN_PASSWORD` session flag (admin) |
 | External APIs | Discord OAuth/Bot API, dm Foto `spot.photoprintit.com`, dm analog download (CEWE `api.cewe-myphotos.com`), PhotoPrism `/api/v1` (REQ-005) |
-| Planned ingest | REQ-006 film ISO + lens EXIF; REQ-007 preview + rotate before import |
+| Planned ingest | REQ-006 ISO/lens EXIF + named presets; REQ-007 preview + rotate before import |
 | Default listen | `127.0.0.1:8080` |
 | DB file | `data/app.db` (gitignored) |
 | Secrets | `.env` (never commit) — see `.env.example` |
