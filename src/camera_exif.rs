@@ -166,29 +166,18 @@ fn metadata_from_path(path: &Path) -> Result<Metadata, CameraExifError> {
     match Metadata::new_from_path(path) {
         Ok(meta) => Ok(meta),
         Err(source) => {
-            // CEWE scans and post-rotate JPEG rewrites often have no APP1 EXIF.
-            // little_exif returns Err("No EXIF data found!") instead of empty Metadata.
-            if is_missing_exif_error(&source) {
-                tracing::debug!(
-                    path = %path.display(),
-                    "no existing EXIF; creating new metadata for stamp"
-                );
-                Ok(Metadata::new())
-            } else {
-                Err(CameraExifError::Read {
-                    path: path.display().to_string(),
-                    source,
-                })
-            }
+            // Always start fresh when read fails. CEWE scans and post-rotate
+            // JPEG rewrites often have no APP1; little_exif then returns
+            // Err("No EXIF data found!") instead of empty Metadata. We overwrite
+            // the tags we care about anyway, so preserving other tags is best-effort.
+            tracing::warn!(
+                path = %path.display(),
+                error = %source,
+                "EXIF read failed; creating new metadata for stamp"
+            );
+            Ok(Metadata::new())
         }
     }
-}
-
-fn is_missing_exif_error(err: &std::io::Error) -> bool {
-    let msg = err.to_string().to_ascii_lowercase();
-    msg.contains("no exif data found")
-        || msg.contains("no exif")
-        || (err.kind() == std::io::ErrorKind::Other && msg.contains("exif"))
 }
 
 fn touch_mtime(path: &Path) -> Result<(), CameraExifError> {
@@ -438,9 +427,4 @@ mod tests {
         assert_eq!(first_iso(&meta), Some(200));
     }
 
-    #[test]
-    fn missing_exif_error_detection() {
-        let err = std::io::Error::new(std::io::ErrorKind::Other, "No EXIF data found!");
-        assert!(is_missing_exif_error(&err));
-    }
 }
