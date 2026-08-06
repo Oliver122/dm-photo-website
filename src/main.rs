@@ -1,3 +1,4 @@
+mod analog_workdir;
 mod app;
 mod auth;
 mod camera_exif;

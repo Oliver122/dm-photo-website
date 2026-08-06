@@ -1,0 +1,66 @@
+<section class="ingest-preview" id="ingest-preview-{{ job.id }}">
+  <header class="ingest-preview-head">
+    <h3>Vorschau — <code>{{ job.order_number }}</code></h3>
+    <p class="muted">Bilder drehen, dann Import bestätigen. {{ images.len() }} Datei(en).</p>
+  </header>
+
+  {% if images.is_empty() %}
+    <p class="empty-state">Keine Bilder im Arbeitsverzeichnis gefunden.</p>
+  {% else %}
+    <div class="ingest-preview-grid">
+      {% for image in images %}
+        <article class="ingest-preview-card" id="preview-card-{{ job.id }}-{{ loop.index }}">
+          <img
+            class="ingest-preview-img"
+            src="/api/analog/ingest/{{ job.id }}/preview/file?path={{ image.relative_path }}"
+            alt="{{ image.file_name }}"
+            loading="lazy" />
+          <p class="ingest-preview-name">{{ image.file_name }}</p>
+          <div class="ingest-preview-actions">
+            <button
+              type="button"
+              class="secondary touch-target"
+              hx-post="/api/analog/ingest/{{ job.id }}/preview/rotate"
+              hx-vals='{"file": "{{ image.relative_path }}", "direction": "ccw"}'
+              hx-target="#analog-preview-panel"
+              hx-swap="innerHTML"
+              aria-label="90° gegen den Uhrzeigersinn drehen">
+              ↺ Drehen
+            </button>
+            <button
+              type="button"
+              class="secondary touch-target"
+              hx-post="/api/analog/ingest/{{ job.id }}/preview/rotate"
+              hx-vals='{"file": "{{ image.relative_path }}", "direction": "cw"}'
+              hx-target="#analog-preview-panel"
+              hx-swap="innerHTML"
+              aria-label="90° im Uhrzeigersinn drehen">
+              ↻ Drehen
+            </button>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="ingest-preview-footer">
+    <button
+      type="button"
+      class="touch-target"
+      hx-post="/api/analog/ingest/{{ job.id }}/preview/confirm"
+      hx-target="#analog-ingest-list"
+      hx-swap="innerHTML"
+      hx-confirm="Import starten? Die Bilder werden mit Metadaten versehen und hochgeladen.">
+      Import bestätigen
+    </button>
+    <button
+      type="button"
+      class="secondary touch-target"
+      hx-post="/api/analog/ingest/{{ job.id }}/preview/cancel"
+      hx-target="#analog-ingest-list"
+      hx-swap="innerHTML"
+      hx-confirm="Import wirklich abbrechen? Die heruntergeladenen Dateien werden gelöscht.">
+      Abbrechen
+    </button>
+  </div>
+</section>

@@ -69,6 +69,16 @@ pub fn rotate_jpeg_ccw(path: &Path) -> Result<(), ImageRotateError> {
     rotate_jpeg(path, false)
 }
 
+/// Alias used by preview UI handlers.
+pub fn rotate_cw(path: &Path) -> Result<(), ImageRotateError> {
+    rotate_jpeg_cw(path)
+}
+
+/// Alias used by preview UI handlers.
+pub fn rotate_ccw(path: &Path) -> Result<(), ImageRotateError> {
+    rotate_jpeg_ccw(path)
+}
+
 fn rotate_jpeg(path: &Path, clockwise: bool) -> Result<(), ImageRotateError> {
     let path_str = path.display().to_string();
 

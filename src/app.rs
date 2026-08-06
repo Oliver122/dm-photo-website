@@ -70,6 +70,26 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
             "/api/analog/ingest",
             post(handlers::analog_ingest::create_ingest_job),
         )
+        .route(
+            "/api/analog/ingest/:id/preview",
+            get(handlers::analog_ingest::preview_gallery),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/file",
+            get(handlers::analog_ingest::preview_image),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/rotate",
+            post(handlers::analog_ingest::preview_rotate),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/confirm",
+            post(handlers::analog_ingest::preview_confirm),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/cancel",
+            post(handlers::analog_ingest::preview_cancel),
+        )
         .route("/api/users", get(handlers::api::list_users))
         .route("/api/users/:id", delete(handlers::api::delete_user))
         .nest_service("/static", ServeDir::new(static_dir))

@@ -673,6 +673,24 @@ pub async fn find_done_analog_ingest_job(
     Ok(job)
 }
 
+/// Alias for UI slice naming (same as `confirm_analog_ingest_job`).
+pub async fn confirm_analog_ingest_preview_for_user(
+    pool: &SqlitePool,
+    job_id: i64,
+    user_id: i64,
+) -> Result<bool> {
+    confirm_analog_ingest_job(pool, job_id, user_id).await
+}
+
+/// Alias for UI slice naming (same as `cancel_analog_ingest_job`).
+pub async fn cancel_analog_ingest_preview_for_user(
+    pool: &SqlitePool,
+    job_id: i64,
+    user_id: i64,
+) -> Result<bool> {
+    cancel_analog_ingest_job(pool, job_id, user_id).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

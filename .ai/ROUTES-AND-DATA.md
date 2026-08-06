@@ -22,6 +22,11 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 | POST | `/api/dm/me` | user | api | Send test Discord DM |
 | GET | `/api/analog/ingest` | user | analog_ingest | HTMX partial: analog ingest job list |
 | POST | `/api/analog/ingest` | user | analog_ingest | Queue analog ingest job |
+| GET | `/api/analog/ingest/:id/preview` | user | analog_ingest | HTMX partial: preview gallery (owner; job status `preview`) |
+| GET | `/api/analog/ingest/:id/preview/file?path=…` | user | analog_ingest | Preview image bytes (owner; path under workdir) |
+| POST | `/api/analog/ingest/:id/preview/rotate` | user | analog_ingest | Rotate one image 90° CW/CCW (`file`, `direction`) |
+| POST | `/api/analog/ingest/:id/preview/confirm` | user | analog_ingest | Confirm import → status `labeling` |
+| POST | `/api/analog/ingest/:id/preview/cancel` | user | analog_ingest | Cancel preview → `failed`, clear `secure_id`, delete workdir |
 | POST | `/api/order/check` | user | api | Lookup order; may create ticket |
 | POST | `/api/tickets` | user | api | Manual ticket create |
 | DELETE | `/api/tickets/:id` | user | api | Delete own ticket |
@@ -83,7 +88,7 @@ Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 | `secure_id` | TEXT NULL | Cleared after successful import |
 | `camera_label` | TEXT | User-supplied camera name |
 | `album` | TEXT NULL | Optional PhotoPrism album for this batch |
-| `status` | TEXT | `queued` / `downloading` / `labeling` / `uploading` / `done` / `failed` |
+| `status` | TEXT | `queued` / `downloading` / `preview` / `labeling` / `uploading` / `done` / `failed` |
 | `error_text` | TEXT NULL | German/technical message on failure |
 | `created_at` / `updated_at` | TEXT | |
 
@@ -107,4 +112,6 @@ Analog ingest SQL uses the `analog_ingest_*` naming prefix (not generic `ingest_
 | `claim_next_queued_analog_ingest_job` | Atomic claim → `downloading` |
 | `update_analog_ingest_job_status` | Status + optional `error_text` |
 | `clear_analog_ingest_secure_id` | NULL `secure_id` after success |
+| `confirm_analog_ingest_preview_for_user` | Owner confirm: `preview` → `labeling` |
+| `cancel_analog_ingest_preview_for_user` | Owner cancel: `preview` → `failed`, clear `secure_id` |
 | `find_done_analog_ingest_job` | Idempotency check for completed order |
