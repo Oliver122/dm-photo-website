@@ -9,7 +9,7 @@ Open by **REQ id** — do not dump this folder into context. See [`README.md`](R
 | REQ-003 | Admin dashboard and tooling | accepted | [REQ-003-admin.md](REQ-003-admin.md) |
 | REQ-004 | SQLite data, migrations, agent constraints | accepted | [REQ-004-data-migrations.md](REQ-004-data-migrations.md) |
 | REQ-005 | DM analog download → camera EXIF → PhotoPrism | accepted | [REQ-005-dm-analog-download.md](REQ-005-dm-analog-download.md) |
-| REQ-006 | Separate cameras/lenses, ISO, ticket→import | planned | [REQ-006-film-lens-exif.md](REQ-006-film-lens-exif.md) |
+| REQ-006 | Separate cameras/lenses, ISO, ticket→import | accepted | [REQ-006-film-lens-exif.md](REQ-006-film-lens-exif.md) |
 | REQ-007 | Ingest preview + rotate before PhotoPrism import | planned | [REQ-007-ingest-preview-rotate.md](REQ-007-ingest-preview-rotate.md) |
 | REQ-008 | System tests (HTTP +/- + DB flows) | accepted | [REQ-008-system-tests.md](REQ-008-system-tests.md) |
 | REQ-009 | Home UI overhaul (simpler; pick variant A/B) | planned | [REQ-009-home-ui-overhaul.md](REQ-009-home-ui-overhaul.md) |
