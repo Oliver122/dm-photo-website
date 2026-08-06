@@ -103,12 +103,16 @@ pub async fn create_ingest_job(
         }
         Err(err) => {
             tracing::error!(?err, "failed to create ingest job");
-            let message = if err.to_string().contains("UNIQUE") {
-                "Für diesen Auftrag gibt es bereits einen Import."
-            } else {
-                "Auftrag konnte nicht angelegt werden."
-            };
-            html_error(StatusCode::INTERNAL_SERVER_ERROR, message)
+            if err.to_string().contains("UNIQUE") {
+                return html_error(
+                    StatusCode::CONFLICT,
+                    "Dieser Auftrag wurde bereits erfolgreich importiert.",
+                );
+            }
+            html_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Auftrag konnte nicht angelegt werden.",
+            )
         }
     }
 }
