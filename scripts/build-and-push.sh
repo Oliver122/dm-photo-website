@@ -1,22 +1,34 @@
 #!/usr/bin/env bash
 # Build the app image and push it to JFrog Artifactory (Docker local repo).
-# Artifactory itself is operated outside this repo — set registry/creds via env.
+# Fill the placeholders below, or override the same names via the environment.
 set -euo pipefail
+
+# --- local config (placeholders) ---
+ARTIFACTORY_DOCKER_REGISTRY="${ARTIFACTORY_DOCKER_REGISTRY:-artifactory.example.com/docker-local}"
+ARTIFACTORY_USER="${ARTIFACTORY_USER:-}"
+ARTIFACTORY_TOKEN="${ARTIFACTORY_TOKEN:-}"
+ARTIFACTORY_PASSWORD="${ARTIFACTORY_PASSWORD:-}"
+IMAGE_NAME="${IMAGE_NAME:-dm-photo-website}"
+TAG="${TAG:-}"
+PUSH_LATEST="${PUSH_LATEST:-0}"
+# -----------------------------------
 
 die() {
   echo "error: $*" >&2
   exit 1
 }
 
-: "${ARTIFACTORY_DOCKER_REGISTRY:?ARTIFACTORY_DOCKER_REGISTRY is required (e.g. artifactory.example.com/docker-local)}"
+if [[ -z "${ARTIFACTORY_DOCKER_REGISTRY}" || "${ARTIFACTORY_DOCKER_REGISTRY}" == "artifactory.example.com/docker-local" ]]; then
+  die "set ARTIFACTORY_DOCKER_REGISTRY at the top of this script (not the example placeholder)"
+fi
 
-IMAGE_NAME="${IMAGE_NAME:-dm-photo-website}"
-TAG="${TAG:-$(git rev-parse --short HEAD)}"
-PUSH_LATEST="${PUSH_LATEST:-0}"
+if [[ -z "${TAG}" ]]; then
+  TAG="$(git rev-parse --short HEAD)"
+fi
 
-ARTIFACTORY_PASSWORD="${ARTIFACTORY_TOKEN:-${ARTIFACTORY_PASSWORD:-}}"
-if [[ -z "${ARTIFACTORY_USER:-}" || -z "${ARTIFACTORY_PASSWORD}" ]]; then
-  die "ARTIFACTORY_USER and ARTIFACTORY_TOKEN (or ARTIFACTORY_PASSWORD) are required for docker login"
+ARTIFACTORY_PASSWORD="${ARTIFACTORY_TOKEN:-${ARTIFACTORY_PASSWORD}}"
+if [[ -z "${ARTIFACTORY_USER}" || -z "${ARTIFACTORY_PASSWORD}" ]]; then
+  die "set ARTIFACTORY_USER and ARTIFACTORY_TOKEN (or ARTIFACTORY_PASSWORD) at the top of this script"
 fi
 
 # Login host is the registry hostname (before the first /).
