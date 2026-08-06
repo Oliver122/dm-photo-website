@@ -1,0 +1,13 @@
+---
+description: Always load project AI context from .ai/
+alwaysApply: true
+---
+
+# dm-photo-website — AI context
+
+Before non-trivial work, read `.ai/INDEX.md` and the linked docs there (architecture, requirements, routes, conventions, git/branches).
+
+- Prefer `.ai/` over root `README.md` when they disagree; README may lag.
+- Put durable review/decision notes in `.ai/reviews/`.
+- Ignore `docs/kurze-wege-*` unless the user asks about that coursework.
+- Do not commit `.env` or `data/*.db*`. Do not commit unless the user asks.

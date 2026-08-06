@@ -1,5 +1,29 @@
 use anyhow::{Context, Result};
-use std::env;
+use std::{env, path::PathBuf};
+
+#[derive(Debug, Clone)]
+pub struct PhotoPrismConfig {
+    pub base_url: Option<String>,
+    pub username: Option<String>,
+    pub app_password: Option<String>,
+    /// Optional; upload uses session `user.UID`. If set and mismatched, warn only.
+    pub user_uid: Option<String>,
+    pub default_album: Option<String>,
+    pub verify_tls: bool,
+}
+
+impl PhotoPrismConfig {
+    pub fn is_configured(&self) -> bool {
+        self.base_url
+            .as_ref()
+            .is_some_and(|u| !u.is_empty())
+            && self.username.as_ref().is_some_and(|u| !u.is_empty())
+            && self
+                .app_password
+                .as_ref()
+                .is_some_and(|p| !p.is_empty())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -10,12 +34,18 @@ pub struct Config {
     pub discord_redirect_uri: String,
     pub discord_bot_token: Option<String>,
     pub dm_message: String,
+    pub dm_key_account_id: String,
     pub admin_password: String,
     pub session_secret: Vec<u8>,
+    pub photoprism: PhotoPrismConfig,
+    pub analog_ingest_dir: PathBuf,
 }
 
 const DEFAULT_DM_MESSAGE: &str =
     "Hello from dm-photo-website! This is a test message triggered from the site.";
+
+/// dm Foto key account id used by the spot.photoprintit.com order status API.
+const DEFAULT_DM_KEY_ACCOUNT_ID: &str = "1320";
 
 impl Config {
     pub fn from_env() -> Result<Self> {
@@ -50,6 +80,12 @@ impl Config {
             .filter(|v| !v.is_empty())
             .unwrap_or_else(|| DEFAULT_DM_MESSAGE.to_string());
 
+        let dm_key_account_id = env::var("DM_KEY_ACCOUNT_ID")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| DEFAULT_DM_KEY_ACCOUNT_ID.to_string());
+
         let admin_password = require("ADMIN_PASSWORD")?;
 
         let session_secret_raw = require("SESSION_SECRET")?;
@@ -61,6 +97,24 @@ impl Config {
             );
         }
 
+        let photoprism = PhotoPrismConfig {
+            base_url: optional_env("PHOTOPRISM_BASE_URL"),
+            username: optional_env("PHOTOPRISM_USERNAME"),
+            app_password: optional_env("PHOTOPRISM_APP_PASSWORD"),
+            user_uid: optional_env("PHOTOPRISM_USER_UID"),
+            default_album: optional_env("PHOTOPRISM_DEFAULT_ALBUM"),
+            verify_tls: env::var("PHOTOPRISM_VERIFY_TLS")
+                .ok()
+                .map(|v| !matches!(v.trim(), "0" | "false" | "no"))
+                .unwrap_or(true),
+        };
+        let analog_ingest_dir = env::var("ANALOG_INGEST_DIR")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("data/ingest"));
+
         Ok(Self {
             server_addr,
             database_url,
@@ -69,10 +123,20 @@ impl Config {
             discord_redirect_uri,
             discord_bot_token,
             dm_message,
+            dm_key_account_id,
             admin_password,
             session_secret: session_secret_raw.into_bytes(),
+            photoprism,
+            analog_ingest_dir,
         })
     }
+}
+
+fn optional_env(key: &str) -> Option<String> {
+    env::var(key)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn require(key: &str) -> Result<String> {

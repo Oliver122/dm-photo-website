@@ -1,0 +1,18 @@
+# Deploy from this directory. Only config needed: a filled `.env` (see `.env.example`).
+#
+#   cp .env.example .env   # edit secrets + image
+#   docker login dm-registry.olivers-homelab2.cc
+#   docker compose up -d
+#
+# Data (SQLite + ingest scratch) lives in ./data next to this file.
+
+services:
+  app:
+    image: ${DOCKER_IMAGE:-dm-registry.olivers-homelab2.cc/dm-photo-website:latest}
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    restart: unless-stopped

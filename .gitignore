@@ -7,3 +7,9 @@
 .env.local
 *.log
 .DS_Store
+
+# Deploy secrets
+deploy/app/.env
+
+# Deploy runtime data
+deploy/app/data/

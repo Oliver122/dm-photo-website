@@ -1,0 +1,32 @@
+{% if jobs.is_empty() %}
+  <p class="empty-state">
+    <strong>Noch keine Import-Aufträge</strong>
+    Formular ausfüllen, um einen Analog-Import zu starten.
+  </p>
+{% else %}
+  <table class="ingest-jobs">
+    <thead>
+      <tr>
+        <th>Auftrag</th>
+        <th>Kamera</th>
+        <th>Status</th>
+        <th>Aktualisiert</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td><code>{{ job.order_number }}</code></td>
+          <td>{{ job.camera_label }}</td>
+          <td>
+            <span class="status status-{{ job.status }}">{{ job.status_label_de() }}</span>
+            {% if let Some(err) = job.error_text %}
+              <div class="error ingest-error">{{ err }}</div>
+            {% endif %}
+          </td>
+          <td>{{ job.updated_at.format("%d.%m.%Y %H:%M") }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
