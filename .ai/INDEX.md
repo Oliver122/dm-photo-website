@@ -6,7 +6,7 @@
 
 1. [`PROJECT.md`](PROJECT.md) — what this is, goals, non-goals
 2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — modules, request flow, jobs
-3. [`REQUIREMENTS.md`](REQUIREMENTS.md) — product + engineering requirements
+3. [`requirements/_index.md`](requirements/_index.md) — product + engineering requirements (open by REQ id; do not load the whole `requirements/` folder into context). Legacy pointer: [`REQUIREMENTS.md`](REQUIREMENTS.md)
 4. [`ROUTES-AND-DATA.md`](ROUTES-AND-DATA.md) — HTTP surface + SQLite schema
 5. [`CONVENTIONS.md`](CONVENTIONS.md) — how to change code safely
 6. [`GIT-AND-BRANCHES.md`](GIT-AND-BRANCHES.md) — branch naming, commits, PRs
