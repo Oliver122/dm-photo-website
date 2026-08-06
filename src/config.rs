@@ -1,5 +1,27 @@
 use anyhow::{Context, Result};
-use std::env;
+use std::{env, path::PathBuf};
+
+#[derive(Debug, Clone)]
+pub struct PhotoPrismConfig {
+    pub base_url: Option<String>,
+    pub app_password: Option<String>,
+    pub user_uid: Option<String>,
+    pub default_album: Option<String>,
+    pub verify_tls: bool,
+}
+
+impl PhotoPrismConfig {
+    pub fn is_configured(&self) -> bool {
+        self.base_url
+            .as_ref()
+            .is_some_and(|u| !u.is_empty())
+            && self
+                .app_password
+                .as_ref()
+                .is_some_and(|p| !p.is_empty())
+            && self.user_uid.as_ref().is_some_and(|u| !u.is_empty())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -12,6 +34,8 @@ pub struct Config {
     pub dm_message: String,
     pub admin_password: String,
     pub session_secret: Vec<u8>,
+    pub photoprism: PhotoPrismConfig,
+    pub analog_ingest_dir: PathBuf,
 }
 
 const DEFAULT_DM_MESSAGE: &str =
@@ -61,6 +85,23 @@ impl Config {
             );
         }
 
+        let photoprism = PhotoPrismConfig {
+            base_url: optional_env("PHOTOPRISM_BASE_URL"),
+            app_password: optional_env("PHOTOPRISM_APP_PASSWORD"),
+            user_uid: optional_env("PHOTOPRISM_USER_UID"),
+            default_album: optional_env("PHOTOPRISM_DEFAULT_ALBUM"),
+            verify_tls: env::var("PHOTOPRISM_VERIFY_TLS")
+                .ok()
+                .map(|v| !matches!(v.trim(), "0" | "false" | "no"))
+                .unwrap_or(true),
+        };
+        let analog_ingest_dir = env::var("ANALOG_INGEST_DIR")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("data/ingest"));
+
         Ok(Self {
             server_addr,
             database_url,
@@ -71,8 +112,17 @@ impl Config {
             dm_message,
             admin_password,
             session_secret: session_secret_raw.into_bytes(),
+            photoprism,
+            analog_ingest_dir,
         })
     }
+}
+
+fn optional_env(key: &str) -> Option<String> {
+    env::var(key)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn require(key: &str) -> Result<String> {

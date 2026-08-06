@@ -24,6 +24,7 @@ use crate::{
 struct IndexTemplate {
     current_user: Option<User>,
     is_admin: bool,
+    photoprism_configured: bool,
 }
 
 #[derive(Template)]
@@ -64,7 +65,12 @@ async fn is_admin_session(session: &Session) -> bool {
 pub async fn index(State(state): State<AppState>, session: Session) -> impl IntoResponse {
     let current_user = load_current_user(&state, &session).await;
     let is_admin = is_admin_session(&session).await;
-    IndexTemplate { current_user, is_admin }
+    let photoprism_configured = state.config.photoprism.is_configured();
+    IndexTemplate {
+        current_user,
+        is_admin,
+        photoprism_configured,
+    }
 }
 
 pub async fn login_page(State(state): State<AppState>, session: Session) -> impl IntoResponse {

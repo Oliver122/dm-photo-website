@@ -1,9 +1,13 @@
 mod auth;
+mod camera_exif;
 mod config;
 mod db;
 mod discord_bot;
+mod dm_analog;
 mod handlers;
+mod jobs;
 mod models;
+mod photoprism;
 mod state;
 
 use std::sync::Arc;
@@ -31,6 +35,14 @@ async fn main() -> Result<()> {
 
     let config = Config::from_env().context("loading config")?;
     tracing::info!(addr = %config.server_addr, "starting dm-photo-website");
+
+    if let Some(parent) = config.analog_ingest_dir.parent() {
+        if !parent.as_os_str().is_empty() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+    }
 
     let pool = db::init_pool(&config.database_url).await?;
 
@@ -60,6 +72,8 @@ async fn main() -> Result<()> {
         http,
     };
 
+    jobs::spawn_analog_ingest_worker(state.clone());
+
     let app = Router::new()
         .route("/", get(handlers::pages::index))
         .route("/login", get(handlers::pages::login_page))
@@ -75,6 +89,8 @@ async fn main() -> Result<()> {
         .route("/admin", get(handlers::pages::admin_dashboard))
         .route("/api/me", get(handlers::api::me))
         .route("/api/dm/me", post(handlers::api::dm_me))
+        .route("/api/analog/ingest", get(handlers::analog_ingest::list_ingest_jobs))
+        .route("/api/analog/ingest", post(handlers::analog_ingest::create_ingest_job))
         .route("/api/users", get(handlers::api::list_users))
         .route("/api/users/:id", delete(handlers::api::delete_user))
         .nest_service("/static", ServeDir::new("static"))

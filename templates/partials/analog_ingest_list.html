@@ -1,0 +1,29 @@
+{% if jobs.is_empty() %}
+  <p class="muted">Noch keine Import-Aufträge.</p>
+{% else %}
+  <table class="users ingest-jobs">
+    <thead>
+      <tr>
+        <th>Auftrag</th>
+        <th>Kamera</th>
+        <th>Status</th>
+        <th>Aktualisiert</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td><code>{{ job.order_number }}</code></td>
+          <td>{{ job.camera_label }}</td>
+          <td>
+            <span class="status status-{{ job.status }}">{{ job.status_enum().label_de() }}</span>
+            {% if let Some(err) = job.error_text %}
+              <div class="error ingest-error">{{ err }}</div>
+            {% endif %}
+          </td>
+          <td><code>{{ job.updated_at }}</code></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
