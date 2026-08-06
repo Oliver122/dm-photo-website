@@ -4,7 +4,13 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::path::Path;
 use std::str::FromStr;
 
-use crate::models::User;
+use crate::models::{
+    AnalogIngestJob, ANALOG_INGEST_STATUS_DOWNLOADING, ANALOG_INGEST_STATUS_QUEUED, User,
+};
+
+const ANALOG_INGEST_JOB_COLUMNS: &str = r#"
+    id, user_id, order_number, secure_id, camera_label, album, status, error_text, created_at, updated_at
+"#;
 
 pub async fn init_pool(database_url: &str) -> Result<SqlitePool> {
     if let Some(path) = sqlite_path_from_url(database_url) {
@@ -109,5 +115,138 @@ pub async fn delete_user(pool: &SqlitePool, id: i64) -> Result<bool> {
         .execute(pool)
         .await
         .context("failed to delete user")?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn create_job(
+    pool: &SqlitePool,
+    user_id: i64,
+    order_number: &str,
+    secure_id: &str,
+    camera_label: &str,
+    album: Option<&str>,
+) -> Result<AnalogIngestJob> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO analog_ingest_jobs (user_id, order_number, secure_id, camera_label, album, status)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "#,
+    )
+    .bind(user_id)
+    .bind(order_number)
+    .bind(secure_id)
+    .bind(camera_label)
+    .bind(album)
+    .bind(ANALOG_INGEST_STATUS_QUEUED)
+    .execute(pool)
+    .await
+    .context("failed to create analog ingest job")?;
+
+    get_job(pool, result.last_insert_rowid())
+        .await?
+        .context("analog ingest job vanished after insert")
+}
+
+pub async fn get_job(pool: &SqlitePool, id: i64) -> Result<Option<AnalogIngestJob>> {
+    let query = format!(
+        "SELECT {ANALOG_INGEST_JOB_COLUMNS} FROM analog_ingest_jobs WHERE id = ?1"
+    );
+    let job = sqlx::query_as::<_, AnalogIngestJob>(&query)
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .context("failed to query analog ingest job by id")?;
+    Ok(job)
+}
+
+pub async fn list_jobs_for_user(pool: &SqlitePool, user_id: i64) -> Result<Vec<AnalogIngestJob>> {
+    let query = format!(
+        "SELECT {ANALOG_INGEST_JOB_COLUMNS} FROM analog_ingest_jobs WHERE user_id = ?1 ORDER BY created_at DESC"
+    );
+    let jobs = sqlx::query_as::<_, AnalogIngestJob>(&query)
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+        .context("failed to list analog ingest jobs for user")?;
+    Ok(jobs)
+}
+
+pub async fn claim_next_queued_job(pool: &SqlitePool) -> Result<Option<AnalogIngestJob>> {
+    let mut tx = pool.begin().await.context("failed to begin claim transaction")?;
+
+    let select_query = format!(
+        "SELECT {ANALOG_INGEST_JOB_COLUMNS} FROM analog_ingest_jobs WHERE status = ?1 ORDER BY created_at ASC LIMIT 1"
+    );
+    let job = sqlx::query_as::<_, AnalogIngestJob>(&select_query)
+        .bind(ANALOG_INGEST_STATUS_QUEUED)
+        .fetch_optional(&mut *tx)
+        .await
+        .context("failed to query next queued analog ingest job")?;
+
+    let Some(job) = job else {
+        tx.rollback().await.ok();
+        return Ok(None);
+    };
+
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET status = ?1, updated_at = datetime('now')
+        WHERE id = ?2 AND status = ?3
+        "#,
+    )
+    .bind(ANALOG_INGEST_STATUS_DOWNLOADING)
+    .bind(job.id)
+    .bind(ANALOG_INGEST_STATUS_QUEUED)
+    .execute(&mut *tx)
+    .await
+    .context("failed to claim analog ingest job")?;
+
+    if result.rows_affected() == 0 {
+        tx.rollback().await.ok();
+        return Ok(None);
+    }
+
+    tx.commit()
+        .await
+        .context("failed to commit analog ingest job claim")?;
+
+    get_job(pool, job.id).await
+}
+
+pub async fn update_job_status(
+    pool: &SqlitePool,
+    id: i64,
+    status: &str,
+    error_text: Option<&str>,
+) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET status = ?1, error_text = ?2, updated_at = datetime('now')
+        WHERE id = ?3
+        "#,
+    )
+    .bind(status)
+    .bind(error_text)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("failed to update analog ingest job status")?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn clear_secure_id(pool: &SqlitePool, id: i64) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET secure_id = NULL, updated_at = datetime('now')
+        WHERE id = ?1
+        "#,
+    )
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("failed to clear analog ingest job secure_id")?;
     Ok(result.rows_affected() > 0)
 }
