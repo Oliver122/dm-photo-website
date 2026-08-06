@@ -1,9 +1,18 @@
 use std::path::Path;
 
-use little_exif::{exif_tag::ExifTag, metadata::Metadata};
+use little_exif::{
+    exif_tag::ExifTag,
+    metadata::Metadata,
+    rational::uR64,
+};
 use thiserror::Error;
 
 const DEFAULT_MAKE: &str = "Analog";
+
+/// Inclusive lower bound for film ISO stamping.
+pub const FILM_ISO_MIN: u32 = 1;
+/// Inclusive upper bound for film ISO stamping.
+pub const FILM_ISO_MAX: u32 = 102400;
 
 /// Parsed EXIF Make/Model pair from a user-supplied camera label.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +25,12 @@ pub struct CameraMakeModel {
 pub enum CameraExifError {
     #[error("camera label must not be empty")]
     EmptyLabel,
+    #[error("film ISO must be between {FILM_ISO_MIN} and {FILM_ISO_MAX}, got {value}")]
+    InvalidFilmIso { value: u32 },
+    #[error("focal length must be greater than 0, got {value}")]
+    InvalidFocalMm { value: f64 },
+    #[error("aperture must be greater than 0, got {value}")]
+    InvalidAperture { value: f64 },
     #[error("failed to read EXIF from {path}: {source}")]
     Read {
         path: String,
@@ -34,6 +49,30 @@ pub enum CameraExifError {
         #[source]
         source: std::io::Error,
     },
+}
+
+/// Validate film ISO for ingest stamping (`1..=102400`).
+pub fn validate_film_iso(iso: u32) -> Result<(), CameraExifError> {
+    if iso < FILM_ISO_MIN || iso > FILM_ISO_MAX {
+        return Err(CameraExifError::InvalidFilmIso { value: iso });
+    }
+    Ok(())
+}
+
+/// Validate lens focal length in millimeters (`> 0`).
+pub fn validate_focal_mm(focal_mm: f64) -> Result<(), CameraExifError> {
+    if !focal_mm.is_finite() || focal_mm <= 0.0 {
+        return Err(CameraExifError::InvalidFocalMm { value: focal_mm });
+    }
+    Ok(())
+}
+
+/// Validate lens aperture / f-number (`> 0`).
+pub fn validate_aperture(aperture: f64) -> Result<(), CameraExifError> {
+    if !aperture.is_finite() || aperture <= 0.0 {
+        return Err(CameraExifError::InvalidAperture { value: aperture });
+    }
+    Ok(())
 }
 
 /// Split a user camera label into EXIF Make/Model.
@@ -70,15 +109,48 @@ pub fn label_to_make_model(label: &str) -> Result<CameraMakeModel, CameraExifErr
 
 /// Overwrite IFD0 EXIF `Make` and `Model` on `path` from `label`, preserving other tags.
 pub fn stamp_camera_label(path: &Path, label: &str) -> Result<(), CameraExifError> {
-    let CameraMakeModel { make, model } = label_to_make_model(label)?;
+    stamp_ingest_metadata(path, label, None, None, None)
+}
 
-    let mut meta = Metadata::new_from_path(path).map_err(|source| CameraExifError::Read {
-        path: path.display().to_string(),
-        source,
-    })?;
+/// Stamp camera Make/Model plus optional film ISO, focal length, and aperture on `path`.
+///
+/// When set, ISO is written as `ISOSpeedRatings` (`ExifTag::ISO`) and `ISOSpeed`
+/// (PhotographicSensitivity). Lens values use `FocalLength` and `FNumber`.
+pub fn stamp_ingest_metadata(
+    path: &Path,
+    camera_label: &str,
+    iso: Option<u32>,
+    focal_mm: Option<f64>,
+    aperture: Option<f64>,
+) -> Result<(), CameraExifError> {
+    let CameraMakeModel { make, model } = label_to_make_model(camera_label)?;
+
+    if let Some(iso) = iso {
+        validate_film_iso(iso)?;
+    }
+    if let Some(focal_mm) = focal_mm {
+        validate_focal_mm(focal_mm)?;
+    }
+    if let Some(aperture) = aperture {
+        validate_aperture(aperture)?;
+    }
+
+    let mut meta = metadata_from_path(path)?;
 
     meta.set_tag(ExifTag::Make(make));
     meta.set_tag(ExifTag::Model(model));
+
+    if let Some(iso) = iso {
+        let iso_u16 = iso as u16;
+        meta.set_tag(ExifTag::ISO(vec![iso_u16]));
+        meta.set_tag(ExifTag::ISOSpeed(vec![iso]));
+    }
+    if let Some(focal_mm) = focal_mm {
+        meta.set_tag(ExifTag::FocalLength(vec![uR64::from(focal_mm)]));
+    }
+    if let Some(aperture) = aperture {
+        meta.set_tag(ExifTag::FNumber(vec![uR64::from(aperture)]));
+    }
 
     meta.write_to_file(path).map_err(|source| CameraExifError::Write {
         path: path.display().to_string(),
@@ -88,6 +160,22 @@ pub fn stamp_camera_label(path: &Path, label: &str) -> Result<(), CameraExifErro
     touch_mtime(path)?;
 
     Ok(())
+}
+
+fn metadata_from_path(path: &Path) -> Result<Metadata, CameraExifError> {
+    match Metadata::new_from_path(path) {
+        Ok(meta) => Ok(meta),
+        Err(source) => {
+            if source.to_string().contains("No EXIF data found") {
+                Ok(Metadata::new())
+            } else {
+                Err(CameraExifError::Read {
+                    path: path.display().to_string(),
+                    source,
+                })
+            }
+        }
+    }
 }
 
 fn touch_mtime(path: &Path) -> Result<(), CameraExifError> {
@@ -100,7 +188,85 @@ fn touch_mtime(path: &Path) -> Result<(), CameraExifError> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use std::io::{BufWriter, Write};
+
+    use image::codecs::jpeg::JpegEncoder;
+    use image::{ExtendedColorType, ImageBuffer, Rgb, RgbImage};
+
     use super::*;
+
+    fn write_fixture_jpeg(path: &Path) {
+        let mut img: RgbImage = ImageBuffer::new(8, 6);
+        for (x, y, pixel) in img.enumerate_pixels_mut() {
+            *pixel = Rgb([
+                (x as u8) * 25 + 10,
+                (y as u8) * 35 + 15,
+                ((x + y) as u8) * 20 + 5,
+            ]);
+        }
+        let file = File::create(path).expect("create fixture jpeg");
+        let mut writer = BufWriter::new(file);
+        let mut encoder = JpegEncoder::new_with_quality(&mut writer, 90);
+        encoder
+            .encode(img.as_raw(), img.width(), img.height(), ExtendedColorType::Rgb8)
+            .expect("encode fixture jpeg");
+        writer.flush().expect("flush fixture jpeg");
+    }
+
+    fn first_iso(meta: &Metadata) -> Option<u16> {
+        for tag in meta.get_tag(&ExifTag::ISO(vec![0])) {
+            if let ExifTag::ISO(vals) = tag {
+                return vals.first().copied();
+            }
+        }
+        None
+    }
+
+    fn first_iso_speed(meta: &Metadata) -> Option<u32> {
+        for tag in meta.get_tag(&ExifTag::ISOSpeed(vec![0])) {
+            if let ExifTag::ISOSpeed(vals) = tag {
+                return vals.first().copied();
+            }
+        }
+        None
+    }
+
+    fn first_focal_length(meta: &Metadata) -> Option<f64> {
+        for tag in meta.get_tag(&ExifTag::FocalLength(vec![uR64::from(0.0)])) {
+            if let ExifTag::FocalLength(vals) = tag {
+                return vals.first().map(|r| f64::from(r.clone()));
+            }
+        }
+        None
+    }
+
+    fn first_f_number(meta: &Metadata) -> Option<f64> {
+        for tag in meta.get_tag(&ExifTag::FNumber(vec![uR64::from(0.0)])) {
+            if let ExifTag::FNumber(vals) = tag {
+                return vals.first().map(|r| f64::from(r.clone()));
+            }
+        }
+        None
+    }
+
+    fn first_make(meta: &Metadata) -> Option<String> {
+        for tag in meta.get_tag(&ExifTag::Make(String::new())) {
+            if let ExifTag::Make(make) = tag {
+                return Some(make.clone());
+            }
+        }
+        None
+    }
+
+    fn first_model(meta: &Metadata) -> Option<String> {
+        for tag in meta.get_tag(&ExifTag::Model(String::new())) {
+            if let ExifTag::Model(model) = tag {
+                return Some(model.clone());
+            }
+        }
+        None
+    }
 
     #[test]
     fn split_on_first_space() {
@@ -168,5 +334,64 @@ mod tests {
             label_to_make_model("   "),
             Err(CameraExifError::EmptyLabel)
         ));
+    }
+
+    /// T-006-a: film ISO, focal length, and aperture validation accept/reject.
+    #[test]
+    fn t_006_a_iso_focal_aperture_validation() {
+        assert!(validate_film_iso(1).is_ok());
+        assert!(validate_film_iso(400).is_ok());
+        assert!(validate_film_iso(FILM_ISO_MAX).is_ok());
+        assert!(matches!(
+            validate_film_iso(0),
+            Err(CameraExifError::InvalidFilmIso { value: 0 })
+        ));
+        assert!(matches!(
+            validate_film_iso(102401),
+            Err(CameraExifError::InvalidFilmIso { value: 102401 })
+        ));
+
+        assert!(validate_focal_mm(50.0).is_ok());
+        assert!(validate_focal_mm(0.5).is_ok());
+        assert!(matches!(
+            validate_focal_mm(0.0),
+            Err(CameraExifError::InvalidFocalMm { value: 0.0 })
+        ));
+        assert!(matches!(
+            validate_focal_mm(-1.0),
+            Err(CameraExifError::InvalidFocalMm { value: -1.0 })
+        ));
+
+        assert!(validate_aperture(2.4).is_ok());
+        assert!(validate_aperture(1.0).is_ok());
+        assert!(matches!(
+            validate_aperture(0.0),
+            Err(CameraExifError::InvalidAperture { value: 0.0 })
+        ));
+        assert!(matches!(
+            validate_aperture(-2.0),
+            Err(CameraExifError::InvalidAperture { value: -2.0 })
+        ));
+    }
+
+    /// T-006-b: stamp ISO, FocalLength, and FNumber on a fixture JPEG.
+    #[test]
+    fn t_006_b_stamps_iso_focal_aperture_on_jpeg() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("frame.jpg");
+        write_fixture_jpeg(&path);
+
+        stamp_ingest_metadata(&path, "Canon AE-1", Some(400), Some(50.0), Some(2.4))
+            .expect("stamp ingest metadata");
+
+        let meta = Metadata::new_from_path(&path).expect("read stamped jpeg");
+        assert_eq!(first_make(&meta).as_deref(), Some("Canon"));
+        assert_eq!(first_model(&meta).as_deref(), Some("AE-1"));
+        assert_eq!(first_iso(&meta), Some(400));
+        assert_eq!(first_iso_speed(&meta), Some(400));
+        let focal = first_focal_length(&meta).expect("focal length tag");
+        assert!((focal - 50.0).abs() < 0.01, "focal length {focal}");
+        let f_number = first_f_number(&meta).expect("f-number tag");
+        assert!((f_number - 2.4).abs() < 0.01, "f-number {f_number}");
     }
 }
