@@ -37,6 +37,8 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 | POST | `/api/tickets` | user | api | Manual ticket create |
 | DELETE | `/api/tickets/:id` | user | api | Delete own ticket |
 | POST | `/api/tickets/:id/label` | user | api | Rename own ticket |
+| POST | `/api/tickets/:id/gear` | user | tickets | Save camera, lens, film ISO on ticket |
+| POST | `/api/tickets/:id/convert` | user | tickets | Convert ticket → analog ingest job (Secure-ID at submit) |
 | GET | `/api/users` | admin | api | List users |
 | DELETE | `/api/users/:id` | admin | api | Delete user |
 | * | `/static/*` | public | ServeDir | CSS/JS |
@@ -84,7 +86,7 @@ Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 | `created_at` | TEXT | |
 | `last_updated` | TEXT NULL | App always writes explicitly |
 | `completed_at` | TEXT NULL | |
-| `camera_id` | INTEGER NULL FK → user_cameras ON DELETE SET NULL | |
+| `camera_id` | INTEGER NULL FK → user_cameras ON DELETE SET NULL | Optional gear for import |
 | `lens_id` | INTEGER NULL FK → user_lenses ON DELETE SET NULL | |
 | `film_iso` | INTEGER NULL | Film stock ISO |
 
@@ -123,13 +125,13 @@ Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 | `created_at` / `updated_at` | TEXT | |
 | `camera_id` | INTEGER NULL FK → user_cameras ON DELETE SET NULL | |
 | `lens_id` | INTEGER NULL FK → user_lenses ON DELETE SET NULL | |
-| `film_iso` | INTEGER NULL | |
+| `film_iso` | INTEGER NULL | Film stock ISO |
 
 Partial unique index `analog_ingest_jobs_user_order_done_idx` on `(user_id, order_number)` **WHERE `status = 'done'`** — idempotent re-import guard (failed/queued jobs for the same order may coexist).
 
 ## Models
 
-Rust structs in `src/models.rs`: `User`, `UserCamera`, `UserLens`, `Ticket` (+ `completed_before`), `AnalogIngestJob`.
+Rust structs in `src/models.rs`: `User`, `UserCamera`, `UserLens`, `Ticket` (+ `completed_before`), `AnalogIngestJob` (+ `gear_line`).
 
 Status strings and helpers: `ANALOG_INGEST_STATUS_*` constants, `is_valid_analog_ingest_status`, `is_terminal_analog_ingest_status`, `AnalogIngestJob::status_label_de`.
 
@@ -148,6 +150,7 @@ Analog ingest SQL uses the `analog_ingest_*` naming prefix (not generic `ingest_
 | `confirm_analog_ingest_preview_for_user` | Owner confirm: `preview` → `labeling` |
 | `cancel_analog_ingest_preview_for_user` | Owner cancel: `preview` → `failed`, clear `secure_id` |
 | `find_done_analog_ingest_job` | Idempotency check for completed order |
+
 
 ## DB helpers (gear)
 

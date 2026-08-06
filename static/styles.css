@@ -537,6 +537,51 @@ button.small {
   color: var(--muted);
 }
 
+.ticket-gear,
+.ticket-convert-form {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0 0 0.85rem;
+}
+
+.ticket-gear {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+
+.ticket-convert {
+  padding: 0 0 1rem;
+}
+
+.ticket-convert > summary {
+  cursor: pointer;
+  margin-bottom: 0.55rem;
+  width: fit-content;
+}
+
+.ticket-convert-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field.compact span {
+  font-size: 0.76rem;
+}
+
+.field.compact select,
+.field.compact input {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.86rem;
+}
+
+@media (max-width: 720px) {
+  .ticket-gear {
+    grid-template-columns: 1fr;
+  }
+  .ticket-convert-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .empty-state {
   margin: 0;
   padding: 1.5rem 1rem;

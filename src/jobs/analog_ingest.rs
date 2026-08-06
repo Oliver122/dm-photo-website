@@ -154,8 +154,20 @@ async fn process_labeling_job_inner(
     let images_dir = work_dir.join("images");
     let image_paths = list_workdir_images(&images_dir)?;
 
+    let lens = if let Some(lens_id) = job.lens_id {
+        db::find_user_lens_by_id(&state.db, lens_id, job.user_id)
+            .await?
+            .map(|lens| (lens.focal_mm, lens.aperture))
+    } else {
+        None
+    };
+    let iso = job.film_iso.map(|value| value as u32);
+    let (focal_mm, aperture) = lens
+        .map(|(focal_mm, aperture)| (Some(focal_mm), Some(aperture)))
+        .unwrap_or((None, None));
+
     for path in &image_paths {
-        camera_exif::stamp_camera_label(path, &job.camera_label)
+        camera_exif::stamp_ingest_metadata(path, &job.camera_label, iso, focal_mm, aperture)
             .map_err(|err| anyhow::anyhow!("EXIF stamp failed for {}: {err}", path.display()))?;
     }
 

@@ -1,7 +1,7 @@
 # REQ-006 — Cameras, lenses, film ISO & ticket → import
 
 - **ID:** REQ-006
-- **Status:** planned
+- **Status:** accepted
 
 ## Goal
 
@@ -44,33 +44,33 @@ Let users maintain **separate** libraries of **cameras** and **lenses** (not one
 
 ### Gear library page (`/gear`)
 
-- [ ] Logged-in page: two lists — **Kameras** and **Objektive** — with add + delete.
-- [ ] Camera: label only (e.g. `Canon AE-1`).
-- [ ] Lens: name + Brennweite (mm) + Blende.
-- [ ] Validate; German labels; scoped to `user_id`.
+- [x] Logged-in page: two lists — **Kameras** and **Objektive** — with add + delete.
+- [x] Camera: label only (e.g. `Canon AE-1`).
+- [x] Lens: name + Brennweite (mm) + Blende.
+- [x] Validate; German labels; scoped to `user_id`.
 
 ### Ticket attach
 
-- [ ] On each active ticket: select camera, lens, film ISO (optional fields) + Speichern.
-- [ ] Persist on ticket row.
+- [x] On each active ticket: select camera, lens, film ISO (optional fields) + Speichern.
+- [x] Persist on ticket row.
 
 ### Convert ticket → Import
 
-- [ ] Button **Importieren** on ticket (PhotoPrism configured).
-- [ ] Opens compact form: **Secure-ID** (required) + optional album; pre-filled camera/lens/ISO from ticket (editable).
-- [ ] Creates `analog_ingest_job` (`queued`) with denormalized `camera_label` + FKs/ISO; does not require retyping order number.
-- [ ] Blocked if a `done` job exists for that order (same as today) unless deleted first.
+- [x] Button **Importieren** on ticket (PhotoPrism configured).
+- [x] Opens compact form: **Secure-ID** (required) + optional album; pre-filled camera/lens/ISO from ticket (editable).
+- [x] Creates `analog_ingest_job` (`queued`) with denormalized `camera_label` + FKs/ISO; does not require retyping order number.
+- [x] Blocked if a `done` job exists for that order (same as today) unless deleted first.
 
 ### Ingest form (home)
 
-- [ ] Prefer selects for camera + lens from library + Film-ISO; free-text camera label allowed as fallback if no cameras yet.
-- [ ] Job list shows compact gear: `Canon AE-1 · ISO 400 · 50mm f/2.4`.
+- [x] Prefer selects for camera + lens from library + Film-ISO; free-text camera label allowed as fallback if no cameras yet.
+- [x] Job list shows compact gear: `Canon AE-1 · ISO 400 · 50mm f/2.4`.
 
 ### EXIF (labeling stage)
 
-- [ ] Stamp Make/Model from camera label.
-- [ ] Stamp ISO when set; FocalLength + FNumber from lens when set.
-- [ ] Same values for every frame in the batch.
+- [x] Stamp Make/Model from camera label.
+- [x] Stamp ISO when set; FocalLength + FNumber from lens when set.
+- [x] Same values for every frame in the batch.
 
 ## Defaults / decisions
 
@@ -88,7 +88,7 @@ Let users maintain **separate** libraries of **cameras** and **lenses** (not one
 | T-006-e | − | Duplicate camera/lens name rejected | `db` |
 | ST-006-a | − | Convert without Secure-ID → 400 | `system_tests` |
 
-- [ ] T-006-* / ST-006-*
+- [x] T-006-* / ST-006-*
 
 ## Out of scope
 

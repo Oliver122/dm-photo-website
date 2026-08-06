@@ -22,11 +22,119 @@ use crate::{
     state::AppState,
 };
 
+#[derive(Debug, Clone)]
+pub(crate) struct ResolvedIngestGear {
+    pub camera_label: String,
+    pub camera_id: Option<i64>,
+    pub lens_id: Option<i64>,
+    pub film_iso: Option<i32>,
+}
+
+pub(crate) fn parse_optional_form_id(raw: Option<String>) -> Option<i64> {
+    raw.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            trimmed.parse().ok()
+        }
+    })
+}
+
+pub(crate) fn parse_optional_film_iso(raw: Option<String>) -> Result<Option<i32>, Response> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let iso = trimmed.parse::<i32>().map_err(|_| {
+        html_error(
+            StatusCode::BAD_REQUEST,
+            "Film-ISO muss eine ganze Zahl sein.",
+        )
+    })?;
+    camera_exif::validate_film_iso(iso as u32).map_err(|err| {
+        html_error(
+            StatusCode::BAD_REQUEST,
+            &format!("Ungültige Film-ISO: {err}"),
+        )
+    })?;
+    Ok(Some(iso))
+}
+
+pub(crate) async fn resolve_ingest_gear(
+    pool: &sqlx::SqlitePool,
+    user_id: i64,
+    camera_id: Option<i64>,
+    camera_label_input: Option<&str>,
+    lens_id: Option<i64>,
+    film_iso: Option<i32>,
+) -> Result<ResolvedIngestGear, Response> {
+    let camera_label = if let Some(camera_id) = camera_id {
+        let camera = db::find_user_camera_by_id(pool, camera_id, user_id)
+            .await
+            .map_err(|err| {
+                tracing::error!(?err, camera_id, "failed to load camera for ingest");
+                html_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Kamera konnte nicht geladen werden.",
+                )
+            })?
+            .ok_or_else(|| html_error(StatusCode::BAD_REQUEST, "Kamera nicht gefunden."))?;
+        camera.label
+    } else {
+        let label = camera_label_input
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                html_error(StatusCode::BAD_REQUEST, "Kamera-Bezeichnung fehlt.")
+            })?;
+        camera_exif::label_to_make_model(label).map_err(|err| {
+            html_error(
+                StatusCode::BAD_REQUEST,
+                &format!("Ungültige Kamera-Bezeichnung: {err}"),
+            )
+        })?;
+        label.to_string()
+    };
+
+    if let Some(lens_id) = lens_id {
+        let lens = db::find_user_lens_by_id(pool, lens_id, user_id)
+            .await
+            .map_err(|err| {
+                tracing::error!(?err, lens_id, "failed to load lens for ingest");
+                html_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Objektiv konnte nicht geladen werden.",
+                )
+            })?;
+        if lens.is_none() {
+            return Err(html_error(StatusCode::BAD_REQUEST, "Objektiv nicht gefunden."));
+        }
+    }
+
+    Ok(ResolvedIngestGear {
+        camera_label,
+        camera_id,
+        lens_id,
+        film_iso,
+    })
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateIngestForm {
     pub order_number: String,
     pub secure_id: String,
-    pub camera_label: String,
+    #[serde(default)]
+    pub camera_id: Option<String>,
+    #[serde(default)]
+    pub camera_label: Option<String>,
+    #[serde(default)]
+    pub lens_id: Option<String>,
+    #[serde(default)]
+    pub film_iso: Option<String>,
     pub album: Option<String>,
 }
 
@@ -47,7 +155,18 @@ pub struct PreviewFileQuery {
 #[derive(Template)]
 #[template(path = "partials/analog_ingest_list.html")]
 struct IngestListTemplate {
-    jobs: Vec<AnalogIngestJob>,
+    jobs: Vec<IngestJobRow>,
+}
+
+pub struct IngestJobRow {
+    pub job: AnalogIngestJob,
+    pub gear_line: Option<String>,
+}
+
+pub async fn ingest_job_rows(state: &AppState, user_id: i64) -> Vec<IngestJobRow> {
+    load_ingest_job_rows(state, user_id)
+        .await
+        .unwrap_or_default()
 }
 
 #[derive(Template)]
@@ -73,11 +192,16 @@ pub async fn create_ingest_job(
 ) -> Response {
     let order_number = form.order_number.trim().to_string();
     let secure_id = form.secure_id.trim().to_string();
-    let camera_label = form.camera_label.trim().to_string();
     let album = form
         .album
         .map(|a| a.trim().to_string())
         .filter(|a| !a.is_empty());
+    let camera_id = parse_optional_form_id(form.camera_id);
+    let lens_id = parse_optional_form_id(form.lens_id);
+    let film_iso = match parse_optional_film_iso(form.film_iso) {
+        Ok(iso) => iso,
+        Err(resp) => return resp,
+    };
 
     if let Err(err) = dm_analog::validate_order_id(&order_number) {
         return html_error(StatusCode::BAD_REQUEST, &err.to_string());
@@ -87,12 +211,19 @@ pub async fn create_ingest_job(
         return html_error(StatusCode::BAD_REQUEST, &err.to_string());
     }
 
-    if let Err(err) = camera_exif::label_to_make_model(&camera_label) {
-        return html_error(
-            StatusCode::BAD_REQUEST,
-            &format!("Ungültige Kamera-Bezeichnung: {err}"),
-        );
-    }
+    let gear = match resolve_ingest_gear(
+        &state.db,
+        user.0.id,
+        camera_id,
+        form.camera_label.as_deref(),
+        lens_id,
+        film_iso,
+    )
+    .await
+    {
+        Ok(gear) => gear,
+        Err(resp) => return resp,
+    };
 
     if !state.config.photoprism.is_configured() {
         return html_error(
@@ -123,11 +254,11 @@ pub async fn create_ingest_job(
         user.0.id,
         &order_number,
         &secure_id,
-        &camera_label,
+        &gear.camera_label,
         album.as_deref(),
-        None,
-        None,
-        None,
+        gear.camera_id,
+        gear.lens_id,
+        gear.film_iso,
     )
     .await
     {
@@ -138,7 +269,7 @@ pub async fn create_ingest_job(
                 order = %order_number,
                 "analog ingest job queued"
             );
-            list_ingest_jobs(user, State(state)).await
+            list_ingest_jobs_response(user, State(state)).await
         }
         Err(err) => {
             tracing::error!(?err, "failed to create ingest job");
@@ -156,8 +287,8 @@ pub async fn create_ingest_job(
     }
 }
 
-pub async fn list_ingest_jobs(user: AuthUser, State(state): State<AppState>) -> Response {
-    match db::list_analog_ingest_jobs_for_user(&state.db, user.0.id).await {
+pub async fn list_ingest_jobs_response(user: AuthUser, State(state): State<AppState>) -> Response {
+    match load_ingest_job_rows(&state, user.0.id).await {
         Ok(jobs) => IngestListTemplate { jobs }.into_response(),
         Err(err) => {
             tracing::error!(?err, "failed to list ingest jobs");
@@ -169,8 +300,27 @@ pub async fn list_ingest_jobs(user: AuthUser, State(state): State<AppState>) -> 
     }
 }
 
+pub async fn list_ingest_jobs(user: AuthUser, State(state): State<AppState>) -> Response {
+    list_ingest_jobs_response(user, State(state)).await
+}
+
+async fn load_ingest_job_rows(state: &AppState, user_id: i64) -> anyhow::Result<Vec<IngestJobRow>> {
+    let jobs = db::list_analog_ingest_jobs_for_user(&state.db, user_id).await?;
+    let lenses = db::list_user_lenses(&state.db, user_id).await?;
+    Ok(jobs
+        .into_iter()
+        .map(|job| {
+            let lens = job
+                .lens_id
+                .and_then(|lens_id| lenses.iter().find(|lens| lens.id == lens_id));
+            let gear_line = job.gear_line(lens);
+            IngestJobRow { job, gear_line }
+        })
+        .collect())
+}
+
 async fn list_ingest_jobs_clearing_preview(user: AuthUser, state: AppState) -> Response {
-    match db::list_analog_ingest_jobs_for_user(&state.db, user.0.id).await {
+    match load_ingest_job_rows(&state, user.0.id).await {
         Ok(jobs) => {
             let list = IngestListTemplate { jobs }.render().unwrap_or_else(|_| {
                 r#"<p class="error">Importliste konnte nicht geladen werden.</p>"#.into()

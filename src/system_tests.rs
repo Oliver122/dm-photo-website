@@ -25,7 +25,7 @@ fn cookie_from(res: &axum::response::Response) -> Option<String> {
 
 #[tokio::test]
 async fn st_008_a_home_ok() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
     let res = app
         .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
         .await
@@ -35,7 +35,7 @@ async fn st_008_a_home_ok() {
 
 #[tokio::test]
 async fn st_008_b_login_ok() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
     let res = app
         .oneshot(
             Request::builder()
@@ -50,7 +50,7 @@ async fn st_008_b_login_ok() {
 
 #[tokio::test]
 async fn st_008_c_admin_login_page_ok() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
     let res = app
         .oneshot(
             Request::builder()
@@ -65,7 +65,7 @@ async fn st_008_c_admin_login_page_ok() {
 
 #[tokio::test]
 async fn st_008_d_api_me_redirects_when_anonymous() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
     let res = app
         .oneshot(
             Request::builder()
@@ -86,7 +86,7 @@ async fn st_008_d_api_me_redirects_when_anonymous() {
 
 #[tokio::test]
 async fn st_008_e_analog_ingest_htmx_unauthorized() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
     let res = app
         .oneshot(
             Request::builder()
@@ -102,7 +102,7 @@ async fn st_008_e_analog_ingest_htmx_unauthorized() {
 
 #[tokio::test]
 async fn st_008_f_admin_dashboard_redirects_when_anonymous() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
     let res = app
         .oneshot(
             Request::builder()
@@ -121,7 +121,7 @@ async fn st_008_f_admin_dashboard_redirects_when_anonymous() {
 
 #[tokio::test]
 async fn st_008_g_api_users_htmx_forbidden() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
     let res = app
         .oneshot(
             Request::builder()
@@ -137,7 +137,7 @@ async fn st_008_g_api_users_htmx_forbidden() {
 
 #[tokio::test]
 async fn st_008_h_admin_login_positive_grants_dashboard() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
 
     let login = app
         .clone()
@@ -178,7 +178,7 @@ async fn st_008_h_admin_login_positive_grants_dashboard() {
 
 #[tokio::test]
 async fn st_008_i_admin_login_negative_wrong_password() {
-    let (_dir, app, _) = test_app("admin-secret").await;
+    let (_dir, app, _, _) = test_app("admin-secret").await;
 
     let login = app
         .clone()
@@ -228,4 +228,50 @@ async fn st_008_i_admin_login_negative_wrong_password() {
             "expected error copy on failed admin login"
         );
     }
+}
+
+#[tokio::test]
+async fn st_006_a_convert_without_secure_id_returns_400() {
+    use crate::app::test_support::{login_test_user, test_app};
+    use crate::db;
+
+    let (_dir, app, _, pool) = test_app("admin-secret").await;
+    let user = db::upsert_discord_user(&pool, "st-006", "st-user")
+        .await
+        .expect("user");
+    let ticket = db::create_ticket(
+        &pool,
+        user.id,
+        "544850-103401",
+        None,
+        None,
+        None,
+        None,
+        "PROCESSING",
+        None,
+    )
+    .await
+    .expect("ticket");
+    let cookie = login_test_user(&app, user.id).await;
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/tickets/{}/convert", ticket.id))
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header("HX-Request", "true")
+                .body(Body::from("secure_id="))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    let body = body_text(res).await;
+    assert!(
+        body.contains("Secure-ID") || body.contains("error"),
+        "expected secure-id validation error, got: {body}"
+    );
 }
