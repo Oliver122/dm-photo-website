@@ -21,7 +21,7 @@ pub struct CreateIngestForm {
     pub order_number: String,
     pub secure_id: String,
     pub camera_label: String,
-    pub album_name: Option<String>,
+    pub album: Option<String>,
 }
 
 #[derive(Template)]
@@ -39,7 +39,7 @@ pub async fn create_ingest_job(
     let secure_id = form.secure_id.trim().to_string();
     let camera_label = form.camera_label.trim().to_string();
     let album = form
-        .album_name
+        .album
         .map(|a| a.trim().to_string())
         .filter(|a| !a.is_empty());
 
@@ -65,7 +65,7 @@ pub async fn create_ingest_job(
         );
     }
 
-    match db::find_done_job(&state.db, user.0.id, &order_number).await {
+    match db::find_done_analog_ingest_job(&state.db, user.0.id, &order_number).await {
         Ok(Some(_)) => {
             return html_error(
                 StatusCode::CONFLICT,
@@ -82,7 +82,7 @@ pub async fn create_ingest_job(
         }
     }
 
-    match db::create_job(
+    match db::create_analog_ingest_job(
         &state.db,
         user.0.id,
         &order_number,
@@ -118,7 +118,7 @@ pub async fn create_ingest_job(
 }
 
 pub async fn list_ingest_jobs(user: AuthUser, State(state): State<AppState>) -> Response {
-    match db::list_jobs_for_user(&state.db, user.0.id).await {
+    match db::list_analog_ingest_jobs_for_user(&state.db, user.0.id).await {
         Ok(jobs) => IngestListTemplate { jobs }.into_response(),
         Err(err) => {
             tracing::error!(?err, "failed to list ingest jobs");
