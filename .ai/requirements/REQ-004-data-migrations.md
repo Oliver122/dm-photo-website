@@ -27,6 +27,15 @@ Persist app state in SQLite with additive migrations; keep secrets and DB files 
 5. Migrations are additive numbered SQL files; do not rewrite applied migrations.
 6. `docs/kurze-wege-*` is not part of the product; ignore for feature work unless asked.
 
+## Tests
+
+| ID | Case | Where |
+|----|------|--------|
+| T-004-a | Migrations apply on empty SQLite (`:memory:` or temp file) | `src/db.rs` |
+| T-004-b | Analog ingest job create + find_done + clear secure_id | `src/db.rs` |
+
+- [x] T-004-a … T-004-b
+
 ## Out of scope
 
 - Multi-process / multi-host SQLite sharing.

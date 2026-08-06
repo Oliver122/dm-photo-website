@@ -9,6 +9,8 @@ COPY templates ./templates
 COPY static ./static
 COPY migrations ./migrations
 
+# REQ Tests sections must stay green in every image build.
+RUN cargo test
 RUN cargo build --release
 
 FROM debian:bookworm-slim AS runtime

@@ -40,6 +40,18 @@ Example credentials (from the slip / [download page](https://foto.dm.de/fotos/an
 - [x] Status visible in UI (HTMX poll on `#analog-ingest-list`).
 - [x] Clear German error copy for bad credentials / expired download / already imported.
 
+## Tests
+
+| ID | Case | Where |
+|----|------|--------|
+| T-005-a | Order id + Secure-ID validation | `src/dm_analog.rs` |
+| T-005-b | ZIP extract images; reject empty / skip non-images / block `..` | `src/dm_analog.rs` |
+| T-005-c | Camera label → Make/Model split | `src/camera_exif.rs` |
+| T-005-d | PhotoPrism upload token hex length | `src/photoprism.rs` |
+| T-005-e | German status labels on `AnalogIngestJob` | `src/models.rs` |
+
+- [x] T-005-a … T-005-e (T-005-b/e added with this change)
+
 ## Out of scope
 
 - Reverse-engineering exploits or bypassing dm paywalls.

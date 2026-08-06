@@ -13,3 +13,5 @@ Open by **REQ id** — do not dump this folder into context. See [`README.md`](R
 | REQ-011 | Artifactory build/push script + env | planned | [REQ-011-artifactory-push.md](REQ-011-artifactory-push.md) |
 | REQ-012 | App Compose (run from Artifactory) | planned | [REQ-012-app-compose.md](REQ-012-app-compose.md) |
 | REQ-013 | JFrog server checklist (ops-owned) | planned | [REQ-013-jfrog-server.md](REQ-013-jfrog-server.md) |
+
+Accepted REQs list automated **Tests** (`T-*`). Keep them green with `cargo test` (also run in the Docker builder stage).

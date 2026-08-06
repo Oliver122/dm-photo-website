@@ -9,12 +9,21 @@ Ship a production Docker image that runs the Axum binary with Askama templates a
 
 ## Acceptance criteria
 
-- [ ] Multi-stage Rust build → slim runtime image.
-- [ ] Ships binary + `templates/` + `static/` (Askama + HTMX assets).
-- [ ] Listens on `8080`; runs as non-root user.
-- [ ] No secrets baked in; `.dockerignore` excludes `.env`, `data/`, `target/`, `.git`.
-- [ ] Runtime static path is cwd/env-relative (not `CARGO_MANIFEST_DIR`) so the image works.
-- [ ] `Dockerfile` + `.dockerignore` present at repo root (or documented path).
+- [x] Multi-stage Rust build → slim runtime image.
+- [x] Ships binary + `templates/` + `static/` (Askama + HTMX assets).
+- [x] Listens on `8080`; runs as non-root user (entrypoint drops to uid 10001).
+- [x] No secrets baked in; `.dockerignore` excludes `.env`, `data/`, `target/`, `.git`.
+- [x] Runtime static path is cwd/env-relative (`STATIC_DIR` / `static`).
+- [x] `Dockerfile` + `.dockerignore` present at repo root.
+- [x] Builder stage runs `cargo test` (REQ **Tests** must pass before release binary).
+
+## Tests
+
+| ID | Case | Where |
+|----|------|--------|
+| T-010-a | `cargo test` in Docker builder (enforced by Dockerfile `RUN cargo test`) | `Dockerfile` |
+
+- [x] T-010-a
 
 ## Out of scope
 

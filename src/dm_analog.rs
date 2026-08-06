@@ -278,4 +278,57 @@ mod tests {
             Err(DmAnalogError::InvalidSecureId)
         ));
     }
+
+    fn write_test_zip(path: &Path, entries: &[(&str, &[u8])]) {
+        use std::io::Write;
+        let file = File::create(path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default();
+        for (name, bytes) in entries {
+            zip.start_file(*name, opts).unwrap();
+            zip.write_all(bytes).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn extract_zip_pulls_images_skips_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("pack.zip");
+        write_test_zip(
+            &zip_path,
+            &[
+                ("photos/a.jpg", b"jpeg-a"),
+                ("readme.txt", b"nope"),
+                ("photos/b.PNG", b"png-b"),
+            ],
+        );
+        let out = dir.path().join("out");
+        let images = extract_zip(&zip_path, &out).unwrap();
+        assert_eq!(images.len(), 2);
+        assert!(images.iter().any(|p| p.file_name().unwrap() == "a.jpg"));
+        assert!(images.iter().any(|p| p.file_name().unwrap() == "b.PNG"));
+    }
+
+    #[test]
+    fn extract_zip_rejects_empty_image_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("empty.zip");
+        write_test_zip(&zip_path, &[("notes.txt", b"hi")]);
+        let err = extract_zip(&zip_path, &dir.path().join("out")).unwrap_err();
+        assert!(matches!(err, DmAnalogError::EmptyZip));
+    }
+
+    #[test]
+    fn extract_zip_skips_path_traversal_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("evil.zip");
+        write_test_zip(
+            &zip_path,
+            &[("../escape.jpg", b"bad"), ("ok.jpeg", b"good")],
+        );
+        let images = extract_zip(&zip_path, &dir.path().join("out")).unwrap();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].file_name().unwrap(), "ok.jpeg");
+    }
 }

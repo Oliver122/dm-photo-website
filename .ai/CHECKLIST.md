@@ -4,9 +4,11 @@ Use before finishing a feature or PR.
 
 ## Build / verify
 
-- [ ] `cargo check` (or `cargo test` if touching `dm_order` / logic with tests)
+- [ ] `cargo test` (required — covers REQ **Tests** sections)
+- [ ] `cargo check`
 - [ ] New routes registered in `src/main.rs`
 - [ ] New SQL only via `db.rs` + migration if schema changed
+- [ ] New/changed REQ acceptance → matching `T-*` tests added or updated
 - [ ] `.env.example` updated if new env vars
 - [ ] `.ai/` docs updated if routes/schema/behavior changed
 

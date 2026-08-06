@@ -583,3 +583,79 @@ pub async fn find_done_analog_ingest_job(
         .context("failed to query done analog ingest job")?;
     Ok(job)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::ANALOG_INGEST_STATUS_FAILED;
+
+    async fn test_pool() -> (tempfile::TempDir, SqlitePool) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("test.db");
+        let url = format!("sqlite://{}", path.display());
+        let pool = init_pool(&url).await.expect("init_pool");
+        (dir, pool)
+    }
+
+    #[tokio::test]
+    async fn migrations_apply_on_fresh_db() {
+        let (_dir, pool) = test_pool().await;
+        let tables: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'tickets', 'analog_ingest_jobs')",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("count tables");
+        assert_eq!(tables.0, 3);
+    }
+
+    #[tokio::test]
+    async fn analog_ingest_job_create_find_done_and_clear_secure_id() {
+        let (_dir, pool) = test_pool().await;
+        let user = upsert_discord_user(&pool, "123", "tester")
+            .await
+            .expect("user");
+
+        let job = create_analog_ingest_job(
+            &pool,
+            user.id,
+            "544850-103396",
+            "H5GGX3T5",
+            "Canon AE-1",
+            Some("Album"),
+        )
+        .await
+        .expect("create job");
+        assert_eq!(job.status, ANALOG_INGEST_STATUS_QUEUED);
+        assert_eq!(job.secure_id.as_deref(), Some("H5GGX3T5"));
+        assert!(
+            find_done_analog_ingest_job(&pool, user.id, "544850-103396")
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        update_analog_ingest_job_status(&pool, job.id, ANALOG_INGEST_STATUS_FAILED, Some("boom"))
+            .await
+            .unwrap();
+        // Failed jobs are not "done" — re-import allowed.
+        assert!(
+            find_done_analog_ingest_job(&pool, user.id, "544850-103396")
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        update_analog_ingest_job_status(&pool, job.id, ANALOG_INGEST_STATUS_DONE, None)
+            .await
+            .unwrap();
+        clear_analog_ingest_secure_id(&pool, job.id).await.unwrap();
+
+        let done = find_done_analog_ingest_job(&pool, user.id, "544850-103396")
+            .await
+            .unwrap()
+            .expect("done job");
+        assert!(done.secure_id.is_none());
+        assert_eq!(done.status, ANALOG_INGEST_STATUS_DONE);
+    }
+}

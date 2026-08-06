@@ -96,3 +96,67 @@ pub fn is_terminal_analog_ingest_status(status: &str) -> bool {
         ANALOG_INGEST_STATUS_DONE | ANALOG_INGEST_STATUS_FAILED
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_ticket(completed_at: Option<DateTime<Utc>>) -> Ticket {
+        Ticket {
+            id: 1,
+            user_id: 1,
+            order_number: "544850-103396".into(),
+            label: None,
+            customer_no: None,
+            shop_no: None,
+            order_no: None,
+            summary_state_code: "DELIVERED".into(),
+            summary_state_text: None,
+            status: "open".into(),
+            completed: completed_at.is_some(),
+            created_at: Utc::now(),
+            last_updated: None,
+            completed_at,
+        }
+    }
+
+    #[test]
+    fn ticket_completed_before_false_when_incomplete() {
+        assert!(!sample_ticket(None).completed_before(7));
+    }
+
+    #[test]
+    fn ticket_completed_before_true_when_older_than_cutoff() {
+        let old = Utc::now() - chrono::Duration::days(10);
+        assert!(sample_ticket(Some(old)).completed_before(7));
+    }
+
+    #[test]
+    fn ticket_completed_before_false_when_recent() {
+        let recent = Utc::now() - chrono::Duration::days(1);
+        assert!(!sample_ticket(Some(recent)).completed_before(7));
+    }
+
+    #[test]
+    fn analog_status_labels_de() {
+        let mut job = AnalogIngestJob {
+            id: 1,
+            user_id: 1,
+            order_number: "544850-103396".into(),
+            secure_id: None,
+            camera_label: "Holga".into(),
+            album: None,
+            status: ANALOG_INGEST_STATUS_QUEUED.into(),
+            error_text: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        assert_eq!(job.status_label_de(), "Warteschlange");
+        job.status = ANALOG_INGEST_STATUS_DONE.into();
+        assert_eq!(job.status_label_de(), "Fertig");
+        job.status = ANALOG_INGEST_STATUS_FAILED.into();
+        assert_eq!(job.status_label_de(), "Fehler");
+        assert!(job.is_terminal());
+        assert!(is_valid_analog_ingest_status(ANALOG_INGEST_STATUS_UPLOADING));
+    }
+}

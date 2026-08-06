@@ -15,6 +15,14 @@ Users authenticate via Discord OAuth; admins via a separate password session fla
 - [x] User and admin auth are separate (admin password does not require Discord).
 - [x] `GET /api/me` returns current Discord user JSON when logged in.
 
+## Tests
+
+| ID | Case | Where |
+|----|------|--------|
+| T-001-a | Admin password match / reject wrong / reject different length | `src/auth/admin.rs` |
+
+- [x] T-001-a
+
 ## Out of scope
 
 - HTTPS / cookie `Secure=true` until intentional HTTPS deployment.

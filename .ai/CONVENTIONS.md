@@ -33,7 +33,9 @@
 ## Tests
 
 - Unit tests live next to modules (e.g. `dm_order.rs` format/timeline tests).
+- Every `REQ-*.md` **Tests** section lists required cases (`T-<req>-…`); keep them green.
 - Run: `cargo test` and `cargo check` before finishing non-trivial changes.
+- Docker image build runs `cargo test` in the builder stage before `cargo build --release`.
 
 ## Docs sync
 

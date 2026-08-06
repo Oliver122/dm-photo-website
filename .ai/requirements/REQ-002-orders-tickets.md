@@ -30,6 +30,18 @@ Let logged-in users check dm Foto order status, watch ERROR/open orders via tick
 
 - [x] Order check + ticket CRUD endpoints used by HTMX UI (see ROUTES-AND-DATA).
 
+## Tests
+
+| ID | Case | Where |
+|----|------|--------|
+| T-002-a | Order number validation accept/reject | `src/dm_order.rs` |
+| T-002-b | READY/DONE state helpers | `src/dm_order.rs` |
+| T-002-c | Timeline labels (home vs pickup) | `src/dm_order.rs` |
+| T-002-d | Parse real ERROR payload fixture | `src/dm_order.rs` |
+| T-002-e | `Ticket::completed_before` archive cutoff | `src/models.rs` |
+
+- [x] T-002-a … T-002-e
+
 ## Out of scope
 
 - Changing order-number format or DONE/READY state constants without a product ask.
