@@ -33,6 +33,7 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
 
     Router::new()
         .route("/", get(handlers::pages::index))
+        .route("/gear", get(handlers::gear::gear_page))
         .route("/login", get(handlers::pages::login_page))
         .route("/logout", post(handlers::pages::logout))
         .route("/auth/discord", get(handlers::pages::discord_start))
@@ -55,6 +56,16 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
         .route(
             "/admin/tickets/simulate",
             post(handlers::api::simulate_ticket),
+        )
+        .route("/api/gear/cameras", post(handlers::gear::create_camera))
+        .route(
+            "/api/gear/cameras/:id",
+            delete(handlers::gear::delete_camera),
+        )
+        .route("/api/gear/lenses", post(handlers::gear::create_lens))
+        .route(
+            "/api/gear/lenses/:id",
+            delete(handlers::gear::delete_lens),
         )
         .route("/api/me", get(handlers::api::me))
         .route("/api/dm/me", post(handlers::api::dm_me))

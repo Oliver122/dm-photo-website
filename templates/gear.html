@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Ausrüstung — dm-photo{% endblock %}
+
+{% block content %}
+  <header class="page-head">
+    <p class="page-eyebrow">Darkroom</p>
+    <h1>Kameras &amp; Objektive</h1>
+    <p class="page-lead">Lege deine Analog-Kameras und Objektive an — beim Import werden Make, Modell, Brennweite und Blende automatisch ins EXIF geschrieben.</p>
+  </header>
+
+  <div class="stack">
+    <section class="home-section" aria-labelledby="section-kameras">
+      <h2 id="section-kameras" class="section-title">Kameras</h2>
+      <p class="section-note">Bezeichnung wie auf dem Gehäuse, z.&nbsp;B. <code>Canon AE-1</code>.</p>
+
+      <form
+        class="gear-form gear-form--camera"
+        id="gear-camera-form"
+        hx-post="/api/gear/cameras"
+        hx-target="#gear-cameras-out"
+        hx-swap="innerHTML"
+        hx-disabled-elt="find button">
+        <label class="field">
+          <span>Bezeichnung</span>
+          <input
+            type="text"
+            name="label"
+            placeholder="Canon AE-1"
+            maxlength="64"
+            required />
+        </label>
+        <button type="submit">Kamera hinzufügen</button>
+      </form>
+
+      <div id="gear-cameras-out" aria-live="polite"></div>
+      <div id="gear-cameras-list">
+        {% include "partials/gear_cameras_list.html" %}
+      </div>
+    </section>
+
+    <section class="home-section" aria-labelledby="section-objektive">
+      <h2 id="section-objektive" class="section-title">Objektive</h2>
+      <p class="section-note">Name plus Brennweite und Blendenzahl für EXIF <code>FocalLength</code> und <code>FNumber</code>.</p>
+
+      <form
+        class="gear-form gear-form--lens"
+        id="gear-lens-form"
+        hx-post="/api/gear/lenses"
+        hx-target="#gear-lenses-out"
+        hx-swap="innerHTML"
+        hx-disabled-elt="find button">
+        <label class="field">
+          <span>Name</span>
+          <input
+            type="text"
+            name="name"
+            placeholder="Nifty Fifty"
+            maxlength="64"
+            required />
+        </label>
+        <label class="field">
+          <span>Brennweite (mm)</span>
+          <input
+            type="text"
+            name="focal_mm"
+            placeholder="50"
+            required
+            inputmode="decimal" />
+        </label>
+        <label class="field">
+          <span>Blende</span>
+          <input
+            type="text"
+            name="aperture"
+            placeholder="1,8"
+            required
+            inputmode="decimal" />
+        </label>
+        <button type="submit">Objektiv hinzufügen</button>
+      </form>
+
+      <div id="gear-lenses-out" aria-live="polite"></div>
+      <div id="gear-lenses-list">
+        {% include "partials/gear_lenses_list.html" %}
+      </div>
+    </section>
+  </div>
+{% endblock %}

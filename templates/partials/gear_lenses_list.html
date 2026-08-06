@@ -1,0 +1,29 @@
+{% if lenses.is_empty() %}
+  <p class="empty-state">
+    <strong>Noch keine Objektive</strong>
+    Name, Brennweite und Blende oben eingeben.
+  </p>
+{% else %}
+  <ul class="gear-list">
+    {% for lens in lenses %}
+      <li class="gear-item" id="gear-lens-{{ lens.id }}">
+        <div class="gear-main">
+          <h3 class="gear-name">{{ lens.name }}</h3>
+          <p class="gear-spec">{{ lens.spec_label() }}</p>
+          <p class="gear-meta-line">Gespeichert {{ lens.created_at.format("%d.%m.%Y") }}</p>
+        </div>
+        <div class="gear-actions">
+          <button
+            type="button"
+            class="ghost small"
+            hx-delete="/api/gear/lenses/{{ lens.id }}"
+            hx-confirm="Objektiv „{{ lens.name }}“ wirklich löschen?"
+            hx-target="#gear-lenses-list"
+            hx-swap="innerHTML">
+            Löschen
+          </button>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
