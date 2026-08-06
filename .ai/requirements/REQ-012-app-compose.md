@@ -9,11 +9,11 @@ Run the published image via Compose with env file, SQLite volume, and pull from 
 
 ## Acceptance criteria
 
-- [ ] `deploy/app/docker-compose.yml` pulls `image: ${ARTIFACTORY_DOCKER_REGISTRY}/dm-photo-website:${TAG}`.
-- [ ] `env_file: .env` (or documented path).
-- [ ] Volume for SQLite at `/data`; `DATABASE_URL=sqlite:///data/app.db`.
-- [ ] Port mapping `8080:8080`.
-- [ ] Document Discord redirect URI note when host ≠ localhost.
+- [x] `deploy/app/docker-compose.yml` pulls `image: ${ARTIFACTORY_DOCKER_REGISTRY}/dm-photo-website:${TAG}`.
+- [x] `env_file: .env` (or documented path).
+- [x] Volume for SQLite at `/data`; `DATABASE_URL=sqlite:///data/app.db`.
+- [x] Port mapping `8080:8080`.
+- [x] Document Discord redirect URI note when host ≠ localhost.
 
 ## Out of scope
 
