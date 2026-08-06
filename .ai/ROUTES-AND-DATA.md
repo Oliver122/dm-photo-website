@@ -6,7 +6,7 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 
 | Method | Path | Auth | Handler area | Notes |
 |--------|------|------|--------------|-------|
-| GET | `/` | public | pages | Landing; may show user + tickets |
+| GET | `/` | public | pages | Landing; may show user + tickets + analog ingest |
 | GET | `/login` | public | pages | Discord login CTA |
 | POST | `/logout` | public | pages | Clears user session |
 | GET | `/auth/discord` | public | pages | Start OAuth |
@@ -20,8 +20,8 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 | POST | `/admin/tickets/simulate` | admin | api | Create simulated ticket |
 | GET | `/api/me` | user | api | Current user JSON |
 | POST | `/api/dm/me` | user | api | Send test Discord DM |
-| GET | `/api/analog/ingest` | user | api | HTMX partial: analog ingest job list |
-| POST | `/api/analog/ingest` | user | api | Queue analog ingest job |
+| GET | `/api/analog/ingest` | user | analog_ingest | HTMX partial: analog ingest job list |
+| POST | `/api/analog/ingest` | user | analog_ingest | Queue analog ingest job |
 | POST | `/api/order/check` | user | api | Lookup order; may create ticket |
 | POST | `/api/tickets` | user | api | Manual ticket create |
 | DELETE | `/api/tickets/:id` | user | api | Delete own ticket |
@@ -32,7 +32,19 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 
 ## Schema
 
-Migrations: `migrations/0001_init.sql` … `0002_analog_ingest_jobs.sql`. Sessions table owned by `tower-sessions-sqlx-store`.
+Migrations (embedded via SQLx in `db::init_pool`):
+
+| File | Purpose |
+|------|---------|
+| `0001_init.sql` | `users` |
+| `0002_tickets.sql` | `tickets` |
+| `0003_ticket_completed.sql` | `tickets.completed` |
+| `0004_ticket_timestamps.sql` | `last_updated`, `completed_at` |
+| `0005_ticket_label.sql` | `tickets.label` |
+| `0006_analog_ingest.sql` | `analog_ingest_jobs` |
+| `0007_analog_ingest_partial_unique.sql` | partial unique on done jobs |
+
+Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 
 ### `users`
 
@@ -70,13 +82,29 @@ Migrations: `migrations/0001_init.sql` … `0002_analog_ingest_jobs.sql`. Sessio
 | `order_number` | TEXT | `NNNNNN-NNNNNN` |
 | `secure_id` | TEXT NULL | Cleared after successful import |
 | `camera_label` | TEXT | User-supplied camera name |
-| `album_name` | TEXT NULL | Optional PhotoPrism album |
+| `album` | TEXT NULL | Optional PhotoPrism album for this batch |
 | `status` | TEXT | `queued` / `downloading` / `labeling` / `uploading` / `done` / `failed` |
 | `error_text` | TEXT NULL | German/technical message on failure |
 | `created_at` / `updated_at` | TEXT | |
 
-Unique partial index on `(user_id, order_number)` where `status = 'done'` (idempotent re-import guard).
+Partial unique index `analog_ingest_jobs_user_order_done_idx` on `(user_id, order_number)` **WHERE `status = 'done'`** — idempotent re-import guard (failed/queued jobs for the same order may coexist).
 
 ## Models
 
-Rust structs in `src/models.rs`: `User`, `Ticket` (+ `completed_before`), `IngestJob`, `IngestJobStatus`.
+Rust structs in `src/models.rs`: `User`, `Ticket` (+ `completed_before`), `AnalogIngestJob`.
+
+Status strings and helpers: `ANALOG_INGEST_STATUS_*` constants, `is_valid_analog_ingest_status`, `is_terminal_analog_ingest_status`, `AnalogIngestJob::status_label_de`.
+
+## DB helpers (analog ingest)
+
+Analog ingest SQL uses the `analog_ingest_*` naming prefix (not generic `ingest_*`):
+
+| Function | Role |
+|----------|------|
+| `create_analog_ingest_job` | Insert queued job |
+| `get_analog_ingest_job` | Fetch by id |
+| `list_analog_ingest_jobs_for_user` | User’s jobs, newest first |
+| `claim_next_queued_analog_ingest_job` | Atomic claim → `downloading` |
+| `update_analog_ingest_job_status` | Status + optional `error_text` |
+| `clear_analog_ingest_secure_id` | NULL `secure_id` after success |
+| `find_done_analog_ingest_job` | Idempotency check for completed order |
