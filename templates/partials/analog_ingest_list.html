@@ -20,6 +20,18 @@
           <td>{{ job.camera_label }}</td>
           <td>
             <span class="status status-{{ job.status }}">{{ job.status_label_de() }}</span>
+            {% if job.status == "preview" %}
+              <div class="ingest-preview-cta">
+                <button
+                  type="button"
+                  class="secondary small touch-target"
+                  hx-get="/api/analog/ingest/{{ job.id }}/preview"
+                  hx-target="#analog-preview-panel"
+                  hx-swap="innerHTML">
+                  Vorschau bearbeiten
+                </button>
+              </div>
+            {% endif %}
             {% if let Some(err) = job.error_text %}
               <div class="error ingest-error">{{ err }}</div>
             {% endif %}
@@ -30,3 +42,4 @@
     </tbody>
   </table>
 {% endif %}
+<div id="analog-preview-panel"></div>

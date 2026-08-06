@@ -41,6 +41,7 @@ impl Ticket {
 
 pub const ANALOG_INGEST_STATUS_QUEUED: &str = "queued";
 pub const ANALOG_INGEST_STATUS_DOWNLOADING: &str = "downloading";
+pub const ANALOG_INGEST_STATUS_PREVIEW: &str = "preview";
 pub const ANALOG_INGEST_STATUS_LABELING: &str = "labeling";
 pub const ANALOG_INGEST_STATUS_UPLOADING: &str = "uploading";
 pub const ANALOG_INGEST_STATUS_DONE: &str = "done";
@@ -69,6 +70,7 @@ impl AnalogIngestJob {
         match self.status.as_str() {
             ANALOG_INGEST_STATUS_QUEUED => "Warteschlange",
             ANALOG_INGEST_STATUS_DOWNLOADING => "Download",
+            ANALOG_INGEST_STATUS_PREVIEW => "Vorschau",
             ANALOG_INGEST_STATUS_LABELING => "Metadaten",
             ANALOG_INGEST_STATUS_UPLOADING => "Upload",
             ANALOG_INGEST_STATUS_DONE => "Fertig",
@@ -83,6 +85,7 @@ pub fn is_valid_analog_ingest_status(status: &str) -> bool {
         status,
         ANALOG_INGEST_STATUS_QUEUED
             | ANALOG_INGEST_STATUS_DOWNLOADING
+            | ANALOG_INGEST_STATUS_PREVIEW
             | ANALOG_INGEST_STATUS_LABELING
             | ANALOG_INGEST_STATUS_UPLOADING
             | ANALOG_INGEST_STATUS_DONE

@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use crate::models::{
     AnalogIngestJob, Ticket, User, ANALOG_INGEST_STATUS_DONE, ANALOG_INGEST_STATUS_DOWNLOADING,
+    ANALOG_INGEST_STATUS_FAILED, ANALOG_INGEST_STATUS_LABELING, ANALOG_INGEST_STATUS_PREVIEW,
     ANALOG_INGEST_STATUS_QUEUED,
 };
 
@@ -582,6 +583,56 @@ pub async fn find_done_analog_ingest_job(
         .await
         .context("failed to query done analog ingest job")?;
     Ok(job)
+}
+
+/// Transition `preview` → `labeling` for the owning user (REQ-007 confirm import).
+pub async fn confirm_analog_ingest_preview_for_user(
+    pool: &SqlitePool,
+    job_id: i64,
+    user_id: i64,
+) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET status = ?1, updated_at = datetime('now')
+        WHERE id = ?2 AND user_id = ?3 AND status = ?4
+        "#,
+    )
+    .bind(ANALOG_INGEST_STATUS_LABELING)
+    .bind(job_id)
+    .bind(user_id)
+    .bind(ANALOG_INGEST_STATUS_PREVIEW)
+    .execute(pool)
+    .await
+    .context("failed to confirm analog ingest preview")?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Cancel a preview job: mark failed, scrub secure_id (REQ-007).
+pub async fn cancel_analog_ingest_preview_for_user(
+    pool: &SqlitePool,
+    job_id: i64,
+    user_id: i64,
+) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE analog_ingest_jobs
+        SET status = ?1,
+            error_text = ?2,
+            secure_id = NULL,
+            updated_at = datetime('now')
+        WHERE id = ?3 AND user_id = ?4 AND status = ?5
+        "#,
+    )
+    .bind(ANALOG_INGEST_STATUS_FAILED)
+    .bind("Vom Benutzer abgebrochen")
+    .bind(job_id)
+    .bind(user_id)
+    .bind(ANALOG_INGEST_STATUS_PREVIEW)
+    .execute(pool)
+    .await
+    .context("failed to cancel analog ingest preview")?;
+    Ok(result.rows_affected() > 0)
 }
 
 #[cfg(test)]

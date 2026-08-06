@@ -1,6 +1,8 @@
+mod analog_workdir;
 mod app;
 mod auth;
 mod camera_exif;
+mod image_rotate;
 mod config;
 mod db;
 mod discord_bot;
