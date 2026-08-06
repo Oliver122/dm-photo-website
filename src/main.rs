@@ -1,3 +1,4 @@
+mod analog_workdir;
 mod app;
 mod auth;
 mod camera_exif;
@@ -7,9 +8,11 @@ mod discord_bot;
 mod dm_analog;
 mod dm_order;
 mod handlers;
+mod image_rotate;
 mod jobs;
 mod models;
 mod photoprism;
+mod preview_rotations;
 mod state;
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 # REQ-007 — Ingest preview & rotate before PhotoPrism
 
 - **ID:** REQ-007
-- **Status:** planned
+- **Status:** accepted
 
 ## Goal
 
@@ -21,7 +21,7 @@ After CEWE download + ZIP extract (REQ-005), show a **preview** of the scanned f
 
 - [ ] HTMX (or fragment) gallery of extracted images for the job (thumbnails or scaled previews).
 - [ ] Per-image rotate controls: 90° CW / 90° CCW (optional 180°).
-- [ ] Rotation persisted on disk (rewrite JPEG with correct orientation / pixels) before confirm so PhotoPrism sees upright images.
+- [x] Preview rotate is **in-memory** (CSS + RAM quarter-turns) for snappy flips; JPEG rewritten on disk only on **Import bestätigen**.
 - [ ] German copy: Vorschau, Drehen, Import bestätigen, Abbrechen.
 - [ ] Works on mobile (touch-friendly buttons; no desktop-only gestures required).
 

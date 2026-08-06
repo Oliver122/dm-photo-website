@@ -21,7 +21,8 @@ Example credentials (from the slip / [download page](https://foto.dm.de/fotos/an
 - [x] Background job downloads the analog pack (ZIP) using the CEWE `api.cewe-myphotos.com` endpoint.
 - [x] Persist job state in SQLite: queued / downloading / labeling / uploading / done / failed (+ error text).
 - [x] Do not store Secure-ID longer than needed for the active job (`clear_analog_ingest_secure_id` after success; not encrypted at rest while queued).
-- [x] Idempotent per `(user, order_number)`: re-submit of a completed order is rejected (`find_done_analog_ingest_job` + partial unique index on `status = 'done'`).
+- [x] Idempotent per `(user, order_number)` while a `done` row exists (`find_done_analog_ingest_job` + partial unique on `status = 'done'`).
+- [x] User can **delete** queued/preview/done/failed jobs (UI + `DELETE /api/analog/ingest/:id`); after delete, the same order can be imported again.
 
 ### Camera metadata
 

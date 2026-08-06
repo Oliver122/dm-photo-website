@@ -21,6 +21,17 @@ use crate::{
     state::AppState,
 };
 
+#[cfg(test)]
+async fn test_set_user_session(
+    session: tower_sessions::Session,
+    axum::extract::Path(user_id): axum::extract::Path<i64>,
+) -> axum::response::Redirect {
+    let _ = session
+        .insert(crate::auth::session::USER_ID_KEY, user_id)
+        .await;
+    axum::response::Redirect::to("/")
+}
+
 /// Build the full site router (routes + session layer + static files).
 pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsRef<std::path::Path>) -> Router {
     let session_store = SqliteStore::new(state.db.clone());
@@ -31,8 +42,9 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
         .with_expiry(Expiry::OnInactivity(Duration::days(7)))
         .with_signed(Key::from(session_secret));
 
-    Router::new()
+    let router = Router::new()
         .route("/", get(handlers::pages::index))
+        .route("/gear", get(handlers::gear::gear_page))
         .route("/login", get(handlers::pages::login_page))
         .route("/logout", post(handlers::pages::logout))
         .route("/auth/discord", get(handlers::pages::discord_start))
@@ -56,12 +68,27 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
             "/admin/tickets/simulate",
             post(handlers::api::simulate_ticket),
         )
+        .route("/api/gear/cameras", post(handlers::gear::create_camera))
+        .route(
+            "/api/gear/cameras/:id",
+            delete(handlers::gear::delete_camera),
+        )
+        .route("/api/gear/lenses", post(handlers::gear::create_lens))
+        .route(
+            "/api/gear/lenses/:id",
+            delete(handlers::gear::delete_lens),
+        )
         .route("/api/me", get(handlers::api::me))
         .route("/api/dm/me", post(handlers::api::dm_me))
         .route("/api/order/check", post(handlers::api::check_order))
         .route("/api/tickets", post(handlers::api::create_ticket_manual))
         .route("/api/tickets/:id", delete(handlers::api::delete_my_ticket))
         .route("/api/tickets/:id/label", post(handlers::api::rename_my_ticket))
+        .route("/api/tickets/:id/gear", post(handlers::tickets::save_ticket_gear))
+        .route(
+            "/api/tickets/:id/convert",
+            post(handlers::tickets::convert_ticket_to_ingest),
+        )
         .route(
             "/api/analog/ingest",
             get(handlers::analog_ingest::list_ingest_jobs),
@@ -70,9 +97,41 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
             "/api/analog/ingest",
             post(handlers::analog_ingest::create_ingest_job),
         )
+        .route(
+            "/api/analog/ingest/:id",
+            delete(handlers::analog_ingest::delete_ingest_job),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview",
+            get(handlers::analog_ingest::preview_gallery),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/file",
+            get(handlers::analog_ingest::preview_image),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/rotate",
+            post(handlers::analog_ingest::preview_rotate),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/confirm",
+            post(handlers::analog_ingest::preview_confirm),
+        )
+        .route(
+            "/api/analog/ingest/:id/preview/cancel",
+            post(handlers::analog_ingest::preview_cancel),
+        )
         .route("/api/users", get(handlers::api::list_users))
         .route("/api/users/:id", delete(handlers::api::delete_user))
-        .nest_service("/static", ServeDir::new(static_dir))
+        .nest_service("/static", ServeDir::new(static_dir));
+
+    #[cfg(test)]
+    let router = router.route(
+        "/__test/session/:user_id",
+        post(test_set_user_session),
+    );
+
+    router
         .layer(session_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -97,6 +156,7 @@ pub async fn build_state(config: Config, pool: sqlx::SqlitePool) -> Result<AppSt
         config: Arc::new(config),
         oauth: Arc::new(oauth),
         http,
+        preview_rotations: crate::preview_rotations::PreviewRotationStore::new(),
     })
 }
 
@@ -105,6 +165,37 @@ pub mod test_support {
     use super::*;
     use crate::config::PhotoPrismConfig;
     use std::path::PathBuf;
+
+    pub fn cookie_from(res: &axum::response::Response) -> Option<String> {
+        use axum::http::header;
+        res.headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .map(|c| c.split(';').next().unwrap_or(c).to_string())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .reduce(|a, b| format!("{a}; {b}"))
+    }
+
+    pub async fn login_test_user(app: &axum::Router, user_id: i64) -> String {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/__test/session/{user_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("test session request");
+        cookie_from(&res).expect("test session cookie")
+    }
 
     pub fn test_config(admin_password: &str, ingest_dir: PathBuf) -> Config {
         Config {
@@ -133,7 +224,7 @@ pub mod test_support {
 
     pub async fn test_app(
         admin_password: &str,
-    ) -> (tempfile::TempDir, axum::Router, Config) {
+    ) -> (tempfile::TempDir, axum::Router, Config, sqlx::SqlitePool) {
         let dir = tempfile::tempdir().expect("tempdir");
         let db_path = dir.path().join("sys.db");
         let ingest = dir.path().join("ingest");
@@ -146,9 +237,9 @@ pub mod test_support {
             .await
             .expect("init_pool");
         let secret = config.session_secret.clone();
-        let state = build_state(config.clone(), pool).await.expect("state");
+        let state = build_state(config.clone(), pool.clone()).await.expect("state");
         let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
         let app = build_router(state, &secret, static_dir);
-        (dir, app, config)
+        (dir, app, config, pool)
     }
 }

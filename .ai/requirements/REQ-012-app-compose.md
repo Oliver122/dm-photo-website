@@ -1,7 +1,7 @@
 # REQ-012 — App Compose
 
 - **ID:** REQ-012
-- **Status:** planned
+- **Status:** accepted
 
 ## Goal
 

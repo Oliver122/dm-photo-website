@@ -184,7 +184,7 @@ pub async fn download_zip(
     Ok(())
 }
 
-fn is_image_name(name: &str) -> bool {
+pub fn is_image_file_name(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     lower.ends_with(".jpg")
         || lower.ends_with(".jpeg")
@@ -203,7 +203,7 @@ pub fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<Vec<PathBuf>, DmA
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
         let name = entry.name().to_string();
-        if entry.is_dir() || name.contains("..") || !is_image_name(&name) {
+        if entry.is_dir() || name.contains("..") || !is_image_file_name(&name) {
             continue;
         }
         let file_name = Path::new(&name)
