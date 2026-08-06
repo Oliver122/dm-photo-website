@@ -1,7 +1,7 @@
 # REQ-007 — Ingest preview & rotate before PhotoPrism
 
 - **ID:** REQ-007
-- **Status:** planned
+- **Status:** accepted
 
 ## Goal
 

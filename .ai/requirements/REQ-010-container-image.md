@@ -1,7 +1,7 @@
 # REQ-010 — Container image
 
 - **ID:** REQ-010
-- **Status:** planned
+- **Status:** accepted
 
 ## Goal
 

@@ -1,7 +1,7 @@
 # REQ-011 — Artifactory push
 
 - **ID:** REQ-011
-- **Status:** planned
+- **Status:** accepted
 
 ## Goal
 
