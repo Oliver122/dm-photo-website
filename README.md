@@ -36,6 +36,20 @@ stored in `.env`.
    database lives at `data/app.db` and is created on first start via migrations
    embedded in the binary.
 
+## Docker deploy
+
+From `deploy/app/` — only a `.env` is required:
+
+```bash
+cd deploy/app
+cp .env.example .env   # fill DOCKER_IMAGE, secrets, Discord, …
+docker login dm-registry.olivers-homelab2.cc
+docker compose up -d
+```
+
+SQLite and ingest scratch use relative `./data` (bind-mounted into the container).
+Image name must not include `https://`.
+
 ## Routes
 
 | Method | Path                       | Auth     | Description                              |

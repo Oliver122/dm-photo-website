@@ -1,40 +1,18 @@
-# Run the app image pulled from a Docker registry (JFrog Artifactory or compatible).
+# Deploy from this directory. Only config needed: a filled `.env` (see `.env.example`).
 #
-# Compose interpolates ARTIFACTORY_DOCKER_REGISTRY / TAG from:
-#   1) shell env, or
-#   2) a `.env` file in the *same directory as this compose file*
-# `sudo` drops your user env — put registry vars in that `.env`, or use `sudo -E`.
-#
-# App secrets also live in `.env` (copy from `.env.example`).
-# Pull auth (private registry):
+#   cp .env.example .env   # edit secrets + image
 #   docker login dm-registry.olivers-homelab2.cc
+#   docker compose up -d
 #
-# Usage (from repo root):
-#   cp deploy/app/.env.example deploy/app/.env   # fill secrets + registry
-#   docker compose -f deploy/app/docker-compose.yml --env-file deploy/app/.env up -d
-#
-# Or from this directory:
-#   cd deploy/app && docker compose --env-file .env up -d
+# Data (SQLite + ingest scratch) lives in ./data next to this file.
 
 services:
   app:
-    image: ${ARTIFACTORY_DOCKER_REGISTRY:-dm-registry.olivers-homelab2.cc}/dm-photo-website:${TAG:-latest}
+    image: ${DOCKER_IMAGE:-dm-registry.olivers-homelab2.cc/dm-photo-website:latest}
     env_file:
       - .env
-    environment:
-      DATABASE_URL: sqlite:///data/app.db
-      # Listen on all interfaces inside the container so published ports work.
-      SERVER_ADDR: "0.0.0.0:8080"
-      # Scratch space for CEWE ZIP download / EXIF stamp (REQ-005).
-      ANALOG_INGEST_DIR: /data/ingest
     volumes:
-      - app-data:/data
+      - ./data:/app/data
     ports:
-      - "8080:8080"
+      - "${HOST_PORT:-8080}:8080"
     restart: unless-stopped
-    # Image entrypoint chowns /data to uid 10001. If an older image fails with
-    # "unable to open database file", fix once:
-    #   docker run --rm -v <project>_app-data:/data busybox chown -R 10001:10001 /data
-
-volumes:
-  app-data:

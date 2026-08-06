@@ -26,16 +26,18 @@ COPY --from=builder /app/templates /app/templates
 COPY --from=builder /app/static /app/static
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 
-RUN mkdir -p /data \
-    && chown -R app:app /app /data \
+RUN mkdir -p /app/data/ingest \
+    && chown -R app:app /app \
     && chmod +x /docker-entrypoint.sh
 
-# Entrypoint starts as root to chown the mounted volume, then drops to app.
+# Entrypoint starts as root to fix data/ ownership, then drops to app.
 USER root
 
+# Relative to WORKDIR=/app — override via .env if needed.
 ENV SERVER_ADDR=0.0.0.0:8080
-ENV STATIC_DIR=/app/static
-ENV DATABASE_URL=sqlite:///data/app.db
+ENV DATABASE_URL=sqlite://data/app.db
+ENV ANALOG_INGEST_DIR=data/ingest
+ENV STATIC_DIR=static
 
 EXPOSE 8080
 

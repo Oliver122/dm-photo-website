@@ -10,3 +10,6 @@
 
 # Deploy secrets
 deploy/app/.env
+
+# Deploy runtime data
+deploy/app/data/
