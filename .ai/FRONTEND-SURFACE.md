@@ -56,7 +56,8 @@ Stable element IDs used as `hx-target` / OOB anchors. Redesign may restyle, but 
 | `#gear-cameras-out` | gear | camera create | `.notice` / `.error` (`aria-live`) |
 | `#gear-lenses-out` | gear | lens create | `.notice` / `.error` (`aria-live`) |
 | `#refresh-out` | admin | admin ticket actions | Feedback |
-| `#allowlist-out` | admin | allowlist CRUD | Feedback |
+| `#allowlist-list` | admin | allowlist CRUD | List swap target (`hx-target`) |
+| `#allowlist-out` | admin | allowlist CRUD | OOB feedback (`.notice` / `.error`) |
 | `#users-body` / `#user-{id}` | admin | delete user | Row swap |
 
 Action feedback (pending / success / `.error`) and negative HTMX HTML: [reviews/2026-08-07-frontend-ui-definition.md](reviews/2026-08-07-frontend-ui-definition.md) §6b + REQ-014 `ST-014-n*`.
@@ -224,13 +225,13 @@ No body. Sends configured test DM to current user’s Discord id. HTML into `#dm
 | `POST` | `/admin/tickets/simulate` | — | creates done ticket `999999-999999` |
 | `GET` | `/api/users` | — | JSON list (admin page uses SSR table today) |
 | `DELETE` | `/api/users/:id` | — | remove row `#user-{id}` |
-| `POST` | `/admin/allowlist` | `discord_id`, optional `username`, `is_admin` | Add allowlist entry → `#allowlist-out` |
-| `POST` | `/admin/allowlist/:discord_id/admin` | — | Toggle admin flag |
-| `DELETE` | `/admin/allowlist/:discord_id` | — | Remove entry (refuse if last admin) |
+| `POST` | `/admin/allowlist` | `discord_id`, optional `username`, `is_admin` | Swap `#allowlist-list`; OOB notice/error → `#allowlist-out` |
+| `POST` | `/admin/allowlist/:discord_id/admin` | — | Toggle admin flag → `#allowlist-list` |
+| `DELETE` | `/admin/allowlist/:discord_id` | — | Remove entry (refuse if last admin); list + OOB `#allowlist-out` |
 
 Admin login form: `password` → `POST /admin/login` (requires Discord session first; anonymous password → redirect `/login`).
 
-**Admin allowlist panel** (`admin.html`): form (`discord_id`, optional `username`, optional `is_admin` checkbox) → `POST /admin/allowlist`; table rows with toggle-admin + delete → `#allowlist-out` feedback. Warning banner when `default_admin_password` is true.
+**Admin allowlist panel** (`admin.html`): form (`discord_id`, optional `username`, optional `is_admin` checkbox) → `POST /admin/allowlist` with `hx-target="#allowlist-list"`; toggle/delete same target; success/error feedback OOB into `#allowlist-out`. Warning banner when `default_admin_password` is true.
 
 **Login denied:** `GET /login?denied=1` after OAuth reject — German copy; account not on allowlist; contact admin.
 
