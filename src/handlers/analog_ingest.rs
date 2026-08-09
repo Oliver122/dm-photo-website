@@ -156,6 +156,13 @@ pub struct PreviewFileQuery {
 #[template(path = "partials/analog_ingest_list.html")]
 struct IngestListTemplate {
     jobs: Vec<IngestJobRow>,
+    preview_waiting: usize,
+}
+
+pub fn preview_waiting_count(jobs: &[IngestJobRow]) -> usize {
+    jobs.iter()
+        .filter(|row| row.job.status == ANALOG_INGEST_STATUS_PREVIEW)
+        .count()
 }
 
 pub struct IngestJobRow {
@@ -289,7 +296,14 @@ pub async fn create_ingest_job(
 
 pub async fn list_ingest_jobs_response(user: AuthUser, State(state): State<AppState>) -> Response {
     match load_ingest_job_rows(&state, user.0.id).await {
-        Ok(jobs) => IngestListTemplate { jobs }.into_response(),
+        Ok(jobs) => {
+            let preview_waiting = preview_waiting_count(&jobs);
+            IngestListTemplate {
+                jobs,
+                preview_waiting,
+            }
+            .into_response()
+        }
         Err(err) => {
             tracing::error!(?err, "failed to list ingest jobs");
             html_error(
@@ -322,7 +336,13 @@ async fn load_ingest_job_rows(state: &AppState, user_id: i64) -> anyhow::Result<
 async fn list_ingest_jobs_clearing_preview(user: AuthUser, state: AppState) -> Response {
     match load_ingest_job_rows(&state, user.0.id).await {
         Ok(jobs) => {
-            let list = IngestListTemplate { jobs }.render().unwrap_or_else(|_| {
+            let preview_waiting = preview_waiting_count(&jobs);
+            let list = IngestListTemplate {
+                jobs,
+                preview_waiting,
+            }
+            .render()
+            .unwrap_or_else(|_| {
                 r#"<p class="error">Importliste konnte nicht geladen werden.</p>"#.into()
             });
             Html(format!(

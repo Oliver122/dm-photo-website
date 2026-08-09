@@ -32,6 +32,44 @@ async fn test_set_user_session(
     axum::response::Redirect::to("/")
 }
 
+/// Test-only: exercise allowlist gate + upsert without real Discord OAuth.
+#[cfg(test)]
+async fn test_discord_login_gate(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    session: tower_sessions::Session,
+    axum::extract::Path(discord_id): axum::extract::Path<String>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let allowed = match db::is_discord_allowlisted(&state.db, &discord_id).await {
+        Ok(v) => v,
+        Err(_) => {
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "db error",
+            )
+                .into_response();
+        }
+    };
+    if !allowed {
+        return axum::response::Redirect::to("/login?denied=1").into_response();
+    }
+    let user = match db::upsert_discord_user(&state.db, &discord_id, "test-user").await {
+        Ok(u) => u,
+        Err(_) => {
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "db error",
+            )
+                .into_response();
+        }
+    };
+    let _ = session
+        .insert(crate::auth::session::USER_ID_KEY, user.id)
+        .await;
+    axum::response::Redirect::to("/").into_response()
+}
+
 /// Build the full site router (routes + session layer + static files).
 pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsRef<std::path::Path>) -> Router {
     let session_store = SqliteStore::new(state.db.clone());
@@ -56,6 +94,18 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
         .route("/admin/login", post(handlers::pages::admin_login_submit))
         .route("/admin/logout", post(handlers::pages::admin_logout))
         .route("/admin", get(handlers::pages::admin_dashboard))
+        .route(
+            "/admin/allowlist",
+            post(handlers::allowlist::add_allowlist),
+        )
+        .route(
+            "/admin/allowlist/:discord_id",
+            delete(handlers::allowlist::delete_allowlist),
+        )
+        .route(
+            "/admin/allowlist/:discord_id/admin",
+            post(handlers::allowlist::toggle_allowlist_admin),
+        )
         .route(
             "/admin/tickets/refresh",
             post(handlers::api::refresh_tickets),
@@ -126,10 +176,15 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
         .nest_service("/static", ServeDir::new(static_dir));
 
     #[cfg(test)]
-    let router = router.route(
-        "/__test/session/:user_id",
-        post(test_set_user_session),
-    );
+    let router = router
+        .route(
+            "/__test/session/:user_id",
+            post(test_set_user_session),
+        )
+        .route(
+            "/__test/discord_login/:discord_id",
+            post(test_discord_login_gate),
+        );
 
     router
         .layer(session_layer)
@@ -144,6 +199,14 @@ pub async fn build_state(config: Config, pool: sqlx::SqlitePool) -> Result<AppSt
         .migrate()
         .await
         .context("session store migration failed")?;
+
+    db::seed_discord_allowlist_from_config(
+        &pool,
+        &config.discord_allowlist,
+        &config.discord_admin_ids,
+    )
+    .await
+    .context("seeding discord allowlist from config")?;
 
     let oauth = oauth_client(&config).context("building discord oauth client")?;
     let http = reqwest::Client::builder()
@@ -178,10 +241,29 @@ pub mod test_support {
             .reduce(|a, b| format!("{a}; {b}"))
     }
 
-    pub async fn login_test_user(app: &axum::Router, user_id: i64) -> String {
+    /// Ensure the user is allowlisted (AuthUser fail-closed), then set session cookie.
+    pub async fn login_test_user(
+        app: &axum::Router,
+        pool: &sqlx::SqlitePool,
+        user_id: i64,
+    ) -> String {
         use axum::body::Body;
         use axum::http::Request;
         use tower::ServiceExt;
+
+        let user = db::find_by_id(pool, user_id)
+            .await
+            .expect("find user")
+            .expect("user exists");
+        db::upsert_discord_allowlist(
+            pool,
+            &user.discord_id,
+            Some(&user.username),
+            false,
+            "test",
+        )
+        .await
+        .expect("allowlist test user");
 
         let res = app
             .clone()
@@ -208,6 +290,8 @@ pub mod test_support {
             dm_message: "test".into(),
             dm_key_account_id: "1320".into(),
             admin_password: admin_password.into(),
+            discord_allowlist: Vec::new(),
+            discord_admin_ids: Vec::new(),
             session_secret: b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
                 .to_vec(),
             photoprism: PhotoPrismConfig {

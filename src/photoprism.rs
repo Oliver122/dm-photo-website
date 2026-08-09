@@ -36,6 +36,12 @@ pub enum PhotoPrismError {
     StageUpload { status: u16, body: String },
     #[error("PhotoPrism import commit failed (status {status}): {body}")]
     CommitImport { status: u16, body: String },
+    #[error("PhotoPrism album lookup failed (status {status}): {body}")]
+    AlbumLookup { status: u16, body: String },
+    #[error("PhotoPrism album create failed (status {status}): {body}")]
+    AlbumCreate { status: u16, body: String },
+    #[error("PhotoPrism album create response missing UID for title {title}")]
+    AlbumIncomplete { title: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +67,22 @@ pub struct SessionResponse {
 struct ImportBody<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     albums: Option<&'a [String]>,
+}
+
+#[derive(Debug, Serialize)]
+struct CreateAlbumBody<'a> {
+    #[serde(rename = "Title")]
+    title: &'a str,
+    #[serde(rename = "Favorite")]
+    favorite: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct AlbumSummary {
+    #[serde(rename = "UID")]
+    uid: String,
+    #[serde(rename = "Title")]
+    title: String,
 }
 
 #[derive(Debug)]
@@ -95,7 +117,9 @@ impl PhotoPrismClient {
     /// Stage `paths` via multipart POST, then PUT to import/index.
     ///
     /// Authenticates with `POST /api/v1/session` and uses the returned
-    /// `access_token` as Bearer. `album_opt` is passed as optional `albums`.
+    /// `access_token` as Bearer. When `album_opt` is set, finds or creates
+    /// that manual album and passes its UID in the import `albums` list
+    /// (titles alone are unreliable on some PhotoPrism builds).
     pub async fn upload_files(
         &self,
         paths: &[PathBuf],
@@ -113,18 +137,94 @@ impl PhotoPrismClient {
         );
 
         let result = async {
+            let album_uid = match album_opt.map(str::trim).filter(|t| !t.is_empty()) {
+                Some(title) => Some(self.ensure_album(&session, title).await?),
+                None => None,
+            };
+
             for path in paths {
                 self.stage_file(&upload_url, path, &session.access_token)
                     .await?;
             }
-            self.commit_import(&upload_url, album_opt, &session.access_token)
-                .await?;
+            self.commit_import(
+                &upload_url,
+                album_uid.as_deref(),
+                &session.access_token,
+            )
+            .await?;
             Ok(())
         }
         .await;
 
         self.delete_session(&session.access_token).await;
         result
+    }
+
+    /// Return an existing manual album UID for `title`, or create it.
+    async fn ensure_album(
+        &self,
+        session: &ActiveSession,
+        title: &str,
+    ) -> Result<String, PhotoPrismError> {
+        if let Some(uid) = self.find_album_uid(session, title).await? {
+            tracing::debug!(album = title, %uid, "using existing PhotoPrism album");
+            return Ok(uid);
+        }
+
+        let url = format!("{}/api/v1/albums", self.base_url);
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&session.access_token)
+            .json(&CreateAlbumBody {
+                title,
+                favorite: false,
+            })
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(PhotoPrismError::AlbumCreate { status, body });
+        }
+
+        let created: AlbumSummary = response.json().await.map_err(PhotoPrismError::Network)?;
+        if created.uid.is_empty() {
+            return Err(PhotoPrismError::AlbumIncomplete {
+                title: title.to_string(),
+            });
+        }
+
+        tracing::info!(album = title, uid = %created.uid, "created PhotoPrism album");
+        Ok(created.uid)
+    }
+
+    async fn find_album_uid(
+        &self,
+        session: &ActiveSession,
+        title: &str,
+    ) -> Result<Option<String>, PhotoPrismError> {
+        let url = format!("{}/api/v1/albums", self.base_url);
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&session.access_token)
+            .query(&[("count", "100"), ("type", "album"), ("q", title)])
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(PhotoPrismError::AlbumLookup { status, body });
+        }
+
+        let albums: Vec<AlbumSummary> = response.json().await.map_err(PhotoPrismError::Network)?;
+        let exact = albums
+            .into_iter()
+            .find(|album| album.title.eq_ignore_ascii_case(title));
+        Ok(exact.map(|album| album.uid))
     }
 
     async fn create_session(&self) -> Result<ActiveSession, PhotoPrismError> {
@@ -210,10 +310,10 @@ impl PhotoPrismClient {
     async fn commit_import(
         &self,
         upload_url: &str,
-        album_opt: Option<&str>,
+        album_uid_opt: Option<&str>,
         access_token: &str,
     ) -> Result<(), PhotoPrismError> {
-        let albums = album_opt.map(|title| vec![title.to_string()]);
+        let albums = album_uid_opt.map(|uid| vec![uid.to_string()]);
         let body = ImportBody {
             albums: albums.as_deref(),
         };
@@ -308,5 +408,33 @@ mod tests {
         let parsed: SessionResponse = serde_json::from_str(json).expect("parse");
         let err = active_session_from_response(parsed, None).unwrap_err();
         assert!(matches!(err, PhotoPrismError::SessionIncomplete));
+    }
+
+    #[test]
+    fn create_album_body_uses_photoprism_field_names() {
+        let body = CreateAlbumBody {
+            title: "Analog 2026",
+            favorite: false,
+        };
+        let json = serde_json::to_string(&body).expect("serialize");
+        assert_eq!(json, r#"{"Title":"Analog 2026","Favorite":false}"#);
+    }
+
+    #[test]
+    fn parse_album_summary() {
+        let json = r#"{"UID":"atest123","Title":"test","Slug":"test","PhotoCount":3}"#;
+        let album: AlbumSummary = serde_json::from_str(json).expect("parse");
+        assert_eq!(album.uid, "atest123");
+        assert_eq!(album.title, "test");
+    }
+
+    #[test]
+    fn import_body_serializes_album_uid() {
+        let albums = vec!["atest123".to_string()];
+        let body = ImportBody {
+            albums: Some(albums.as_slice()),
+        };
+        let json = serde_json::to_string(&body).expect("serialize");
+        assert_eq!(json, r#"{"albums":["atest123"]}"#);
     }
 }

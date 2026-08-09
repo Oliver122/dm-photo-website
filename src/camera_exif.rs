@@ -170,7 +170,7 @@ fn metadata_from_path(path: &Path) -> Result<Metadata, CameraExifError> {
             // JPEG rewrites often have no APP1; little_exif then returns
             // Err("No EXIF data found!") instead of empty Metadata. We overwrite
             // the tags we care about anyway, so preserving other tags is best-effort.
-            tracing::warn!(
+            tracing::debug!(
                 path = %path.display(),
                 error = %source,
                 "EXIF read failed; creating new metadata for stamp"

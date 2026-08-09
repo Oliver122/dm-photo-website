@@ -1,0 +1,58 @@
+<div id="allowlist-list">
+  {% if allowlist.is_empty() %}
+    <p class="muted">Keine Einträge — Discord-Login ist für alle gesperrt.</p>
+  {% else %}
+    <table class="users">
+      <thead>
+        <tr>
+          <th>Discord-ID</th>
+          <th>Name</th>
+          <th>Admin</th>
+          <th>Quelle</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in allowlist %}
+          <tr id="allow-{{ e.discord_id }}">
+            <td data-label="Discord-ID"><code>{{ e.discord_id }}</code></td>
+            <td data-label="Name">
+              {% if let Some(name) = e.username.as_ref() %}
+                {{ name }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td data-label="Admin">
+              {% if e.is_admin %}
+                ja
+              {% else %}
+                nein
+              {% endif %}
+              <button
+                class="secondary small"
+                hx-post="/admin/allowlist/{{ e.discord_id }}/admin"
+                hx-target="#allowlist-list"
+                hx-swap="outerHTML"
+                hx-disabled-elt="this">
+                {% if e.is_admin %}Admin entziehen{% else %}Als Admin{% endif %}
+              </button>
+            </td>
+            <td data-label="Quelle">{{ e.created_by }}</td>
+            <td>
+              <button
+                class="danger small"
+                hx-delete="/admin/allowlist/{{ e.discord_id }}"
+                hx-confirm="Eintrag {{ e.discord_id }} wirklich entfernen?"
+                hx-target="#allowlist-list"
+                hx-swap="outerHTML"
+                hx-disabled-elt="this">
+                Entfernen
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>

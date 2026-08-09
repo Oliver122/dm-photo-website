@@ -4,8 +4,13 @@
 
 {% block content %}
   <div class="auth-card">
-    <h1>Anmelden</h1>
-    <p>Mit deinem Discord-Konto fortfahren.</p>
+    <h1>dm-photo</h1>
+    <p>Mit deinem Discord-Konto fortfahren — Aufträge tracken und per Discord benachrichtigt werden.</p>
+    {% if denied %}
+      <p class="error" role="alert">
+        Dein Discord-Konto ist nicht freigeschaltet. Bitte einen Admin um Aufnahme in die Allowlist.
+      </p>
+    {% endif %}
     <a class="button" href="/auth/discord">Mit Discord anmelden</a>
   </div>
 {% endblock %}

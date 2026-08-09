@@ -11,6 +11,15 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct DiscordAllowlistEntry {
+    pub discord_id: String,
+    pub username: Option<String>,
+    pub is_admin: bool,
+    pub created_at: DateTime<Utc>,
+    pub created_by: String,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct UserCamera {
     pub id: i64,
     pub user_id: i64,
@@ -172,6 +181,19 @@ impl AnalogIngestJob {
             ANALOG_INGEST_STATUS_DONE => "Fertig",
             ANALOG_INGEST_STATUS_FAILED => "Fehler",
             _ => "Unbekannt",
+        }
+    }
+
+    /// Rank for the ingest UI stepper (0..=5). Failed shares the terminal slot with done.
+    pub fn step_rank(&self) -> u8 {
+        match self.status.as_str() {
+            ANALOG_INGEST_STATUS_QUEUED => 0,
+            ANALOG_INGEST_STATUS_DOWNLOADING => 1,
+            ANALOG_INGEST_STATUS_PREVIEW => 2,
+            ANALOG_INGEST_STATUS_LABELING => 3,
+            ANALOG_INGEST_STATUS_UPLOADING => 4,
+            ANALOG_INGEST_STATUS_DONE | ANALOG_INGEST_STATUS_FAILED => 5,
+            _ => 0,
         }
     }
 }

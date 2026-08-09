@@ -8,17 +8,20 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 |--------|------|------|--------------|-------|
 | GET | `/` | public | pages | Landing; may show user + tickets + analog ingest |
 | GET | `/gear` | user | gear | Camera + lens library (Kameras / Objektive) |
-| GET | `/login` | public | pages | Discord login CTA |
+| GET | `/login` | public | pages | Discord login CTA; `?denied=1` after allowlist reject |
 | POST | `/logout` | public | pages | Clears user session |
 | GET | `/auth/discord` | public | pages | Start OAuth |
-| GET | `/auth/discord/callback` | public | pages | Finish OAuth |
-| GET | `/admin/login` | public | pages | Admin password form |
-| POST | `/admin/login` | public | pages | Verify password |
+| GET | `/auth/discord/callback` | public | pages | Finish OAuth; allowlist check **before** `upsert_discord_user` (denied → no `users` row) |
+| GET | `/admin/login` | user | pages | Admin password form (requires Discord `AuthUser`; anonymous → redirect `/login`) |
+| POST | `/admin/login` | user | pages | Verify password; sets session `is_admin` flag |
 | POST | `/admin/logout` | public | pages | Clear admin flag |
 | GET | `/admin` | admin | pages | Dashboard |
 | POST | `/admin/tickets/refresh` | admin | api | Run refresh cycle now |
 | DELETE | `/admin/tickets` | admin | api | Delete all tickets |
 | POST | `/admin/tickets/simulate` | admin | api | Create simulated ticket |
+| POST | `/admin/allowlist` | admin | api | Add Discord ID to allowlist (optional admin flag) |
+| POST | `/admin/allowlist/:discord_id/admin` | admin | api | Toggle `is_admin` on allowlist row |
+| DELETE | `/admin/allowlist/:discord_id` | admin | api | Remove ID from allowlist (last-admin guard) |
 | POST | `/api/gear/cameras` | user | gear | HTMX: add camera (label) |
 | DELETE | `/api/gear/cameras/:id` | user | gear | HTMX: delete own camera |
 | POST | `/api/gear/lenses` | user | gear | HTMX: add lens (name, focal_mm, aperture) |
@@ -57,8 +60,21 @@ Migrations (embedded via SQLx in `db::init_pool`):
 | `0006_analog_ingest.sql` | `analog_ingest_jobs` |
 | `0007_analog_ingest_partial_unique.sql` | partial unique on done jobs |
 | `0008_user_gear.sql` | `user_cameras`, `user_lenses`; ticket + job gear FKs/ISO |
+| `0009_discord_allowlist.sql` | `discord_allowlist` (REQ-015) |
 
 Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
+
+### `discord_allowlist` (REQ-015)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `discord_id` | TEXT PK | Discord snowflake |
+| `username` | TEXT NULL | Display label; not used for matching |
+| `is_admin` | INTEGER bool | 0/1; admin capability without password when logged in |
+| `created_at` | TEXT | |
+| `created_by` | TEXT | `env` or `admin` |
+
+Boot upserts IDs from `DISCORD_ALLOWLIST` / `DISCORD_ADMIN_IDS`. OAuth denied if ID not in table.
 
 ### `users`
 

@@ -25,13 +25,26 @@ use crate::config::Config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // little_exif logs ERROR via `log` when JPEG has no APP1; we handle that and stamp anyway.
+    // Always mute that crate (even when RUST_LOG=info), then bridge `log` → tracing.
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,sqlx=warn"))
+        .add_directive("little_exif=off".parse().expect("static filter directive"));
     tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,sqlx=warn")))
+        .with(filter)
         .with(fmt::layer())
+        .init();
+    let _ = tracing_log::LogTracer::builder()
+        .with_max_level(log::LevelFilter::Trace)
         .init();
 
     let config = Config::from_env().context("loading config")?;
     tracing::info!(addr = %config.server_addr, "starting dm-photo-website");
+    if config.uses_default_admin_password() {
+        tracing::warn!(
+            "ADMIN_PASSWORD is still the default 'changeme' — change it before production use"
+        );
+    }
 
     if let Some(parent) = config.analog_ingest_dir.parent() {
         if !parent.as_os_str().is_empty() {

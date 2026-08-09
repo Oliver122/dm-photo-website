@@ -34,9 +34,9 @@ migrations/            SQLx numbered SQL migrations
 
 ## Request / auth model
 
-1. **Public** — landing, login pages, Discord OAuth, admin login form.
-2. **User session** — `session["user_id"]` → `AuthUser` loads `users` row. Missing/stale → redirect `/login` or HTMX 401.
-3. **Admin session** — separate flag `session["is_admin"]` after password POST. Independent of Discord login. Missing → redirect `/admin/login` or HTMX 403.
+1. **Public** — landing, login pages, Discord OAuth start/callback (callback allowlist-gated).
+2. **User session** — `session["user_id"]` → `AuthUser` loads `users` row and re-checks Discord allowlist. Missing/stale/revoked → redirect `/login` or HTMX 401.
+3. **Admin** — Discord user session **and** (`session["is_admin"]` after password POST **or** allowlist `is_admin`). Anonymous → `/login`; logged-in non-admin → `/admin/login` or HTMX 403.
 
 Sessions: SQLite-backed `tower-sessions`, signed with `SESSION_SECRET`, 7-day inactivity expiry, `SameSite=Lax`, `HttpOnly`, `Secure=false` (flip when serving HTTPS).
 

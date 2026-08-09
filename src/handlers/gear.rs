@@ -9,7 +9,7 @@ use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
-    auth::session::{ADMIN_KEY, AuthUser},
+    auth::session::{AuthUser, user_has_admin_access},
     camera_exif::{self, CameraExifError},
     db,
     models::{User, UserCamera, UserLens},
@@ -49,10 +49,6 @@ pub struct CreateLensForm {
     pub aperture: String,
 }
 
-async fn is_admin_session(session: &Session) -> bool {
-    session.get::<bool>(ADMIN_KEY).await.ok().flatten().unwrap_or(false)
-}
-
 pub async fn gear_page(
     user: AuthUser,
     State(state): State<AppState>,
@@ -64,7 +60,7 @@ pub async fn gear_page(
     let lenses = db::list_user_lenses(&state.db, user.0.id)
         .await
         .unwrap_or_default();
-    let is_admin = is_admin_session(&session).await;
+    let is_admin = user_has_admin_access(&state.db, &session, &user.0).await;
 
     GearTemplate {
         current_user: Some(user.0),

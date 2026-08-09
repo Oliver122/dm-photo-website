@@ -12,10 +12,12 @@ use crate::{
     auth::{
         admin::verify_password,
         discord::{build_authorize_url, exchange_and_fetch},
-        session::{ADMIN_KEY, AdminUser, AuthUser, OAUTH_STATE_KEY, USER_ID_KEY},
+        session::{
+            ADMIN_KEY, AdminUser, AuthUser, OAUTH_STATE_KEY, USER_ID_KEY, user_has_admin_access,
+        },
     },
     db,
-    models::{Ticket, User, UserCamera, UserLens},
+    models::{DiscordAllowlistEntry, Ticket, User, UserCamera, UserLens},
     state::AppState,
 };
 
@@ -31,6 +33,7 @@ struct IndexTemplate {
     tickets: Vec<Ticket>,
     archived_tickets: Vec<Ticket>,
     jobs: Vec<analog_ingest::IngestJobRow>,
+    preview_waiting: usize,
     cameras: Vec<UserCamera>,
     lenses: Vec<UserLens>,
 }
@@ -40,6 +43,7 @@ struct IndexTemplate {
 struct LoginTemplate {
     current_user: Option<User>,
     is_admin: bool,
+    denied: bool,
 }
 
 #[derive(Template)]
@@ -56,23 +60,46 @@ struct AdminTemplate {
     current_user: Option<User>,
     is_admin: bool,
     users: Vec<User>,
+    allowlist: Vec<DiscordAllowlistEntry>,
+    default_admin_password: bool,
 }
 
 async fn load_current_user(state: &AppState, session: &Session) -> Option<User> {
     let user_id: Option<i64> = session.get(USER_ID_KEY).await.ok().flatten();
-    match user_id {
-        Some(id) => db::find_by_id(&state.db, id).await.ok().flatten(),
-        None => None,
+    let Some(id) = user_id else {
+        return None;
+    };
+    let user = match db::find_by_id(&state.db, id).await.ok().flatten() {
+        Some(u) => u,
+        None => {
+            let _ = session.remove::<i64>(USER_ID_KEY).await;
+            return None;
+        }
+    };
+    match db::is_discord_allowlisted(&state.db, &user.discord_id).await {
+        Ok(true) => Some(user),
+        Ok(false) => {
+            let _ = session.flush().await;
+            None
+        }
+        Err(_) => None,
     }
 }
 
-async fn is_admin_session(session: &Session) -> bool {
-    session.get::<bool>(ADMIN_KEY).await.ok().flatten().unwrap_or(false)
+async fn resolve_is_admin(
+    state: &AppState,
+    session: &Session,
+    current_user: &Option<User>,
+) -> bool {
+    match current_user {
+        Some(user) => user_has_admin_access(&state.db, session, user).await,
+        None => false,
+    }
 }
 
 pub async fn index(State(state): State<AppState>, session: Session) -> impl IntoResponse {
     let current_user = load_current_user(&state, &session).await;
-    let is_admin = is_admin_session(&session).await;
+    let is_admin = resolve_is_admin(&state, &session, &current_user).await;
     let photoprism_configured = state.config.photoprism.is_configured();
     let (archived_tickets, tickets) = match &current_user {
         Some(user) => tickets::load_user_ticket_lists(&state.db, user.id).await,
@@ -82,6 +109,7 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         Some(user) => analog_ingest::ingest_job_rows(&state, user.id).await,
         None => Vec::new(),
     };
+    let preview_waiting = analog_ingest::preview_waiting_count(&jobs);
     let (cameras, lenses) = match &current_user {
         Some(user) => (
             db::list_user_cameras(&state.db, user.id)
@@ -101,28 +129,49 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         tickets,
         archived_tickets,
         jobs,
+        preview_waiting,
         cameras,
         lenses,
     }
 }
 
-pub async fn login_page(State(state): State<AppState>, session: Session) -> impl IntoResponse {
+#[derive(Debug, Deserialize)]
+pub struct LoginQuery {
+    #[serde(default)]
+    pub denied: Option<String>,
+}
+
+pub async fn login_page(
+    State(state): State<AppState>,
+    session: Session,
+    Query(query): Query<LoginQuery>,
+) -> impl IntoResponse {
     let current_user = load_current_user(&state, &session).await;
-    let is_admin = is_admin_session(&session).await;
-    LoginTemplate { current_user, is_admin }
+    let is_admin = resolve_is_admin(&state, &session, &current_user).await;
+    let denied = matches!(query.denied.as_deref(), Some("1") | Some("true"));
+    LoginTemplate {
+        current_user,
+        is_admin,
+        denied,
+    }
 }
 
 pub async fn admin_login_page(
+    user: AuthUser,
     State(state): State<AppState>,
     session: Session,
-) -> impl IntoResponse {
-    let current_user = load_current_user(&state, &session).await;
-    let is_admin = is_admin_session(&session).await;
+) -> Response {
+    let current_user = Some(user.0);
+    let is_admin = resolve_is_admin(&state, &session, &current_user).await;
+    if is_admin {
+        return Redirect::to("/admin").into_response();
+    }
     AdminLoginTemplate {
         current_user,
-        is_admin,
+        is_admin: false,
         error: None,
     }
+    .into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,6 +180,7 @@ pub struct AdminLoginForm {
 }
 
 pub async fn admin_login_submit(
+    user: AuthUser,
     State(state): State<AppState>,
     session: Session,
     Form(form): Form<AdminLoginForm>,
@@ -146,12 +196,10 @@ pub async fn admin_login_submit(
         }
         Redirect::to("/admin").into_response()
     } else {
-        let current_user = load_current_user(&state, &session).await;
-        let is_admin = is_admin_session(&session).await;
         AdminLoginTemplate {
-            current_user,
-            is_admin,
-            error: Some("Invalid password".to_string()),
+            current_user: Some(user.0),
+            is_admin: false,
+            error: Some("Falsches Passwort.".to_string()),
         }
         .into_response()
     }
@@ -163,11 +211,11 @@ pub async fn admin_logout(session: Session) -> Redirect {
 }
 
 pub async fn admin_dashboard(
-    _admin: AdminUser,
+    admin: AdminUser,
     State(state): State<AppState>,
-    session: Session,
+    _session: Session,
 ) -> Response {
-    let current_user = load_current_user(&state, &session).await;
+    let current_user = Some(admin.0);
     let users = match db::list_users(&state.db).await {
         Ok(u) => u,
         Err(err) => {
@@ -179,10 +227,23 @@ pub async fn admin_dashboard(
                 .into_response();
         }
     };
+    let allowlist = match db::list_discord_allowlist(&state.db).await {
+        Ok(entries) => entries,
+        Err(err) => {
+            tracing::error!(?err, "failed to list allowlist");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "could not load allowlist",
+            )
+                .into_response();
+        }
+    };
     AdminTemplate {
         current_user,
         is_admin: true,
         users,
+        allowlist,
+        default_admin_password: state.config.uses_default_admin_password(),
     }
     .into_response()
 }
@@ -252,13 +313,29 @@ pub async fn discord_callback(
         }
     };
 
-    let user = match db::upsert_discord_user(
-        &state.db,
-        &discord_user.id,
-        discord_user.display_name(),
-    )
-    .await
-    {
+    let allowed = match db::is_discord_allowlisted(&state.db, &discord_user.id).await {
+        Ok(v) => v,
+        Err(err) => {
+            tracing::error!(?err, "failed to check discord allowlist");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "db error",
+            )
+                .into_response();
+        }
+    };
+    if !allowed {
+        tracing::warn!(
+            discord_id = %discord_user.id,
+            "discord login denied — not on allowlist (no users row created)"
+        );
+        return Redirect::to("/login?denied=1").into_response();
+    }
+
+    let display = discord_user.display_name().to_string();
+    let _ = db::update_discord_allowlist_username(&state.db, &discord_user.id, &display).await;
+
+    let user = match db::upsert_discord_user(&state.db, &discord_user.id, &display).await {
         Ok(u) => u,
         Err(err) => {
             tracing::error!(?err, "failed to upsert user");

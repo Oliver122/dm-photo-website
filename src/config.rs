@@ -36,6 +36,10 @@ pub struct Config {
     pub dm_message: String,
     pub dm_key_account_id: String,
     pub admin_password: String,
+    /// Discord snowflake IDs allowed to OAuth-login (seeded into DB on boot).
+    pub discord_allowlist: Vec<String>,
+    /// Discord snowflake IDs that get admin without password (also seeded allowlisted).
+    pub discord_admin_ids: Vec<String>,
     pub session_secret: Vec<u8>,
     pub photoprism: PhotoPrismConfig,
     pub analog_ingest_dir: PathBuf,
@@ -46,6 +50,9 @@ const DEFAULT_DM_MESSAGE: &str =
 
 /// dm Foto key account id used by the spot.photoprintit.com order status API.
 const DEFAULT_DM_KEY_ACCOUNT_ID: &str = "1320";
+
+/// Well-known deploy default; app warns while this remains set.
+pub const DEFAULT_ADMIN_PASSWORD: &str = "changeme";
 
 impl Config {
     pub fn from_env() -> Result<Self> {
@@ -87,6 +94,8 @@ impl Config {
             .unwrap_or_else(|| DEFAULT_DM_KEY_ACCOUNT_ID.to_string());
 
         let admin_password = require("ADMIN_PASSWORD")?;
+        let discord_allowlist = parse_id_list(env::var("DISCORD_ALLOWLIST").unwrap_or_default());
+        let discord_admin_ids = parse_id_list(env::var("DISCORD_ADMIN_IDS").unwrap_or_default());
 
         let session_secret_raw = require("SESSION_SECRET")?;
         if session_secret_raw.len() < 64 {
@@ -125,6 +134,8 @@ impl Config {
             dm_message,
             dm_key_account_id,
             admin_password,
+            discord_allowlist,
+            discord_admin_ids,
             session_secret: session_secret_raw.into_bytes(),
             photoprism,
             analog_ingest_dir,
@@ -133,6 +144,34 @@ impl Config {
 
     pub fn analog_ingest_work_dir(&self, job_id: i64) -> PathBuf {
         self.analog_ingest_dir.join(job_id.to_string())
+    }
+
+    pub fn uses_default_admin_password(&self) -> bool {
+        self.admin_password == DEFAULT_ADMIN_PASSWORD
+    }
+}
+
+/// Split comma/whitespace-separated Discord snowflake IDs; drop empties.
+pub fn parse_id_list(raw: impl AsRef<str>) -> Vec<String> {
+    raw.as_ref()
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn t_015_c_parse_id_list_comma_and_whitespace() {
+        assert_eq!(
+            parse_id_list("111, 222\n333"),
+            vec!["111".to_string(), "222".to_string(), "333".to_string()]
+        );
+        assert!(parse_id_list("  ,  \n").is_empty());
     }
 }
 

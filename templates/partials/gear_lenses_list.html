@@ -1,7 +1,7 @@
 {% if lenses.is_empty() %}
   <p class="empty-state">
     <strong>Noch keine Objektive</strong>
-    Name, Brennweite und Blende oben eingeben.
+    Optional für Brennweite und Blende beim Import.
   </p>
 {% else %}
   <ul class="gear-list">
@@ -19,7 +19,8 @@
             hx-delete="/api/gear/lenses/{{ lens.id }}"
             hx-confirm="Objektiv „{{ lens.name }}“ wirklich löschen?"
             hx-target="#gear-lenses-list"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            hx-disabled-elt="this">
             Löschen
           </button>
         </div>

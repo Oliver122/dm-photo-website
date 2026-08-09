@@ -6,35 +6,40 @@
   {% match current_user %}
     {% when Some with (user) %}
       <header class="page-head">
-        <p class="page-eyebrow">Darkroom</p>
-        <h1>Deine Foto-Aufträge</h1>
-        <p class="page-lead">Trage eine dm-Auftragsnummer ein — wir benachrichtigen dich per Discord, sobald die Bilder abholbereit sind. <a href="/gear">Kameras &amp; Objektive verwalten</a>.</p>
+        <h1>Deine Aufträge</h1>
+        <p class="page-lead">
+          Trage eine dm-Auftragsnummer ein — wir benachrichtigen dich per Discord, sobald die Bilder abholbereit sind.
+          <a href="/gear">Kameras &amp; Objektive</a>
+        </p>
       </header>
 
       <div class="stack">
         <section class="home-section" aria-labelledby="section-auftraege">
           <h2 id="section-auftraege" class="section-title">Aufträge</h2>
-          <form class="order-form" id="order-form">
+          <form
+            class="order-form"
+            id="order-form"
+            hx-post="/api/order/check"
+            hx-target="#order-out"
+            hx-swap="innerHTML"
+            hx-disabled-elt="find button[type='submit']"
+            hx-indicator="#order-spinner">
             <label class="field">
               <span>Name</span>
               <input type="text" name="label" placeholder="Urlaub 2026, Hochzeit …" maxlength="80" />
             </label>
             <label class="field">
               <span>Auftragsnummer</span>
-              <input type="text" name="order_number" placeholder="544850-103554"
-                     pattern="\d{6}-\d{6}" required inputmode="numeric" />
+              <input
+                type="text"
+                name="order_number"
+                placeholder="544850-103554"
+                pattern="\d{6}-\d{6}"
+                required
+                inputmode="numeric" />
             </label>
             <div class="form-actions">
-              <button
-                type="button"
-                hx-post="/api/order/check"
-                hx-include="#order-form"
-                hx-target="#order-out"
-                hx-swap="innerHTML"
-                hx-disabled-elt="this"
-                hx-indicator="#order-spinner">
-                Status prüfen
-              </button>
+              <button type="submit">Status prüfen</button>
               <button
                 type="button"
                 class="secondary"
@@ -49,7 +54,7 @@
               <span id="order-spinner" class="htmx-indicator">Bitte warten …</span>
             </div>
           </form>
-          <div id="order-out"></div>
+          <div id="order-out" aria-live="polite"></div>
           <div id="tickets-list">
             {% include "partials/tickets_list.html" %}
           </div>
@@ -65,7 +70,9 @@
               class="ingest-form"
               hx-post="/api/analog/ingest"
               hx-target="#analog-ingest-list"
-              hx-swap="innerHTML">
+              hx-swap="innerHTML"
+              hx-disabled-elt="find button[type='submit']"
+              hx-indicator="#ingest-spinner">
               <label class="field">
                 <span>Auftragsnummer</span>
                 <input type="text" name="order_number" placeholder="123456-123456" required pattern="\d{6}-\d{6}" inputmode="numeric" />
@@ -108,6 +115,7 @@
                 <input type="text" name="album" placeholder="Analog 2026" maxlength="128" />
               </label>
               <button type="submit">Import starten</button>
+              <span id="ingest-spinner" class="htmx-indicator">Bitte warten …</span>
             </form>
           {% else %}
             <p class="section-note">PhotoPrism ist noch nicht konfiguriert — Import ist derzeit deaktiviert.</p>
@@ -137,7 +145,7 @@
             Test-DM senden
           </button>
           <span id="dm-spinner" class="htmx-indicator">Sende …</span>
-          <div id="dm-out"></div>
+          <div id="dm-out" aria-live="polite"></div>
         </details>
       </div>
     {% when None %}
