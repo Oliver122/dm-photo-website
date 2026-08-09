@@ -8,9 +8,11 @@
 2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — modules, request flow, jobs
 3. [`requirements/_index.md`](requirements/_index.md) — product + engineering requirements (open by REQ id; do not load the whole `requirements/` folder into context). Legacy pointer: [`REQUIREMENTS.md`](REQUIREMENTS.md)
 4. [`ROUTES-AND-DATA.md`](ROUTES-AND-DATA.md) — HTTP surface + SQLite schema
-5. [`CONVENTIONS.md`](CONVENTIONS.md) — how to change code safely
-6. [`GIT-AND-BRANCHES.md`](GIT-AND-BRANCHES.md) — branch naming, commits, PRs
-7. [`reviews/`](reviews/) — design/PR review notes (append, don’t overwrite)
+5. [`FRONTEND-SURFACE.md`](FRONTEND-SURFACE.md) — UI/API options contract (forms, HTMX targets, statuses); read before REQ-014
+5b. [`reviews/2026-08-07-frontend-ui-definition.md`](reviews/2026-08-07-frontend-ui-definition.md) — frozen Lab-bench UI + L1–L8 loops (REQ-014)
+6. [`CONVENTIONS.md`](CONVENTIONS.md) — how to change code safely
+7. [`GIT-AND-BRANCHES.md`](GIT-AND-BRANCHES.md) — branch naming, commits, PRs
+8. [`reviews/`](reviews/) — design/PR review notes (append, don’t overwrite)
 
 ## Quick facts
 
@@ -21,7 +23,7 @@
 | DB | SQLite via SQLx, migrations in `migrations/` |
 | Auth | Discord OAuth (users) + `ADMIN_PASSWORD` session flag (admin) |
 | External APIs | Discord OAuth/Bot API, dm Foto `spot.photoprintit.com`, dm analog download (CEWE `api.cewe-myphotos.com`), PhotoPrism `/api/v1` (REQ-005) |
-| Planned | REQ-006 gear; REQ-007 preview (landing); REQ-009 home UI A/B variants |
+| Planned | REQ-013 JFrog ops checklist; REQ-014 frontend redesign (see `FRONTEND-SURFACE.md`) |
 | Default listen | `127.0.0.1:8080` |
 | DB file | `data/app.db` (gitignored) |
 | Secrets | `.env` (never commit) — see `.env.example` |

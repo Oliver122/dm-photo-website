@@ -174,6 +174,19 @@ impl AnalogIngestJob {
             _ => "Unbekannt",
         }
     }
+
+    /// Rank for the ingest UI stepper (0..=5). Failed shares the terminal slot with done.
+    pub fn step_rank(&self) -> u8 {
+        match self.status.as_str() {
+            ANALOG_INGEST_STATUS_QUEUED => 0,
+            ANALOG_INGEST_STATUS_DOWNLOADING => 1,
+            ANALOG_INGEST_STATUS_PREVIEW => 2,
+            ANALOG_INGEST_STATUS_LABELING => 3,
+            ANALOG_INGEST_STATUS_UPLOADING => 4,
+            ANALOG_INGEST_STATUS_DONE | ANALOG_INGEST_STATUS_FAILED => 5,
+            _ => 0,
+        }
+    }
 }
 
 pub fn is_valid_analog_ingest_status(status: &str) -> bool {

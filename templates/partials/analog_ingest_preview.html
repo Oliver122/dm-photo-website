@@ -62,6 +62,7 @@
       hx-post="/api/analog/ingest/{{ job.id }}/preview/confirm"
       hx-target="#analog-ingest-list"
       hx-swap="innerHTML"
+      hx-disabled-elt="this"
       hx-confirm="Import starten? Die Bilder werden mit Metadaten versehen und hochgeladen.">
       Import bestätigen
     </button>
@@ -71,6 +72,7 @@
       hx-post="/api/analog/ingest/{{ job.id }}/preview/cancel"
       hx-target="#analog-ingest-list"
       hx-swap="innerHTML"
+      hx-disabled-elt="this"
       hx-confirm="Import wirklich abbrechen? Die heruntergeladenen Dateien werden gelöscht.">
       Abbrechen
     </button>

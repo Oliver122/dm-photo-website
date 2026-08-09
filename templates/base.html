@@ -14,22 +14,34 @@
     <header class="topbar">
       <a class="brand" href="/">
         <span class="brand-mark" aria-hidden="true"></span>
-        dm-photo
+        <span class="brand-text">dm-photo</span>
       </a>
       <nav>
         {% match current_user %}
           {% when Some with (user) %}
             <a href="/gear">Ausrüstung</a>
-            <span class="user">{{ user.username }}</span>
-            <form method="post" action="/logout" class="inline">
+            <span class="nav-desktop user">{{ user.username }}</span>
+            <form method="post" action="/logout" class="inline nav-desktop">
               <button type="submit" class="link">Abmelden</button>
             </form>
+            {% if is_admin %}
+              <a class="nav-desktop" href="/admin">Admin</a>
+            {% endif %}
+            <details class="nav-more nav-mobile">
+              <summary aria-label="Menü">Mehr</summary>
+              <div class="nav-more-panel">
+                <span class="user">{{ user.username }}</span>
+                {% if is_admin %}
+                  <a href="/admin">Admin</a>
+                {% endif %}
+                <form method="post" action="/logout" class="inline">
+                  <button type="submit" class="link">Abmelden</button>
+                </form>
+              </div>
+            </details>
           {% when None %}
             <a href="/login">Anmelden</a>
         {% endmatch %}
-        {% if is_admin %}
-          <a href="/admin">Admin</a>
-        {% endif %}
       </nav>
     </header>
     <main>{% block content %}{% endblock %}</main>

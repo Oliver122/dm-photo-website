@@ -31,6 +31,7 @@ struct IndexTemplate {
     tickets: Vec<Ticket>,
     archived_tickets: Vec<Ticket>,
     jobs: Vec<analog_ingest::IngestJobRow>,
+    preview_waiting: usize,
     cameras: Vec<UserCamera>,
     lenses: Vec<UserLens>,
 }
@@ -82,6 +83,7 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         Some(user) => analog_ingest::ingest_job_rows(&state, user.id).await,
         None => Vec::new(),
     };
+    let preview_waiting = analog_ingest::preview_waiting_count(&jobs);
     let (cameras, lenses) = match &current_user {
         Some(user) => (
             db::list_user_cameras(&state.db, user.id)
@@ -101,6 +103,7 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
         tickets,
         archived_tickets,
         jobs,
+        preview_waiting,
         cameras,
         lenses,
     }
@@ -151,7 +154,7 @@ pub async fn admin_login_submit(
         AdminLoginTemplate {
             current_user,
             is_admin,
-            error: Some("Invalid password".to_string()),
+            error: Some("Falsches Passwort.".to_string()),
         }
         .into_response()
     }

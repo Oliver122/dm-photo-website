@@ -17,5 +17,8 @@ Open by **REQ id** — do not dump this folder into context. See [`README.md`](R
 | REQ-011 | Artifactory build/push script + env | accepted | [REQ-011-artifactory-push.md](REQ-011-artifactory-push.md) |
 | REQ-012 | App Compose (run from Artifactory) | accepted | [REQ-012-app-compose.md](REQ-012-app-compose.md) |
 | REQ-013 | JFrog server checklist (ops-owned) | planned | [REQ-013-jfrog-server.md](REQ-013-jfrog-server.md) |
+| REQ-014 | Frontend redesign (capability-preserving) | planned | [REQ-014-frontend-redesign.md](REQ-014-frontend-redesign.md) |
+
+**UI contract (not a REQ):** [`.ai/FRONTEND-SURFACE.md`](../FRONTEND-SURFACE.md) — all form fields, HTMX targets, statuses. Read before REQ-014.
 
 Accepted REQs list automated **Tests** (`T-*`). Keep them green with `cargo test` (also run in the Docker builder stage).
