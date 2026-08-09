@@ -1,7 +1,7 @@
 {% if cameras.is_empty() %}
   <p class="empty-state">
     <strong>Noch keine Kameras</strong>
-    Bezeichnung oben eingeben und hinzufügen.
+    Anlegen für EXIF beim Import.
   </p>
 {% else %}
   <ul class="gear-list">
@@ -18,7 +18,8 @@
             hx-delete="/api/gear/cameras/{{ camera.id }}"
             hx-confirm="Kamera „{{ camera.label }}“ wirklich löschen?"
             hx-target="#gear-cameras-list"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            hx-disabled-elt="this">
             Löschen
           </button>
         </div>

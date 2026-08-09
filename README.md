@@ -23,7 +23,8 @@ stored in `.env`.
 
    ```bash
    cp .env.example .env
-   # Edit DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, ADMIN_PASSWORD, SESSION_SECRET
+   # Edit DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, ADMIN_PASSWORD, SESSION_SECRET,
+   # DISCORD_ALLOWLIST / DISCORD_ADMIN_IDS (numeric Discord snowflake IDs)
    ```
 
 4. Run it:
@@ -57,18 +58,24 @@ Image name must not include `https://`.
 | GET    | `/`                        | public   | Landing page                             |
 | GET    | `/login`                   | public   | Login page (Discord button)              |
 | GET    | `/auth/discord`            | public   | Start the Discord OAuth flow             |
-| GET    | `/auth/discord/callback`   | public   | OAuth redirect; creates session          |
+| GET    | `/auth/discord/callback`   | public   | OAuth; allowlisted IDs only; creates session |
 | POST   | `/logout`                  | public   | Clear the current session                |
-| GET    | `/admin/login`             | public   | Admin login form                         |
-| POST   | `/admin/login`             | public   | Verify `ADMIN_PASSWORD`                  |
-| GET    | `/admin`                   | admin    | Admin dashboard                          |
+| GET    | `/admin/login`             | user     | Admin password form (Discord session required) |
+| POST   | `/admin/login`             | user     | Verify `ADMIN_PASSWORD`                  |
+| GET    | `/admin`                   | admin    | Admin dashboard + Discord allowlist CRUD |
+| POST   | `/admin/allowlist`         | admin    | Add/update allowlist entry               |
+| POST   | `/admin/allowlist/:id/admin` | admin  | Toggle allowlist admin flag              |
+| DELETE | `/admin/allowlist/:id`     | admin    | Remove allowlist entry                   |
 | GET    | `/api/me`                  | user     | Returns the current Discord user as JSON |
 | GET    | `/api/users`               | admin    | Lists all known users                    |
 | DELETE | `/api/users/:id`           | admin    | Deletes a user by id                     |
 
+Discord login is fail-closed: empty `DISCORD_ALLOWLIST` denies all OAuth logins.
+Admin access needs a Discord session plus `ADMIN_PASSWORD` elevation and/or allowlist `is_admin`.
+
 ## Data
 
-Single `users` table:
+`users` table (created only after allowlisted OAuth):
 
 | Column      | Type    | Notes                       |
 | ----------- | ------- | --------------------------- |
@@ -77,5 +84,7 @@ Single `users` table:
 | `username`  | TEXT    | Discord username            |
 | `created_at`| TEXT    | ISO timestamp               |
 | `last_login`| TEXT    | ISO timestamp               |
+
+`discord_allowlist` gates login (`discord_id` PK, optional `username`, `is_admin`).
 
 The `tower_sessions` session table is created automatically by the store.

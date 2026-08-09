@@ -6,7 +6,7 @@ Personal web app for tracking **dm Foto** print orders. Users sign in with Disco
 
 Logged-in users can also queue **dm analog** ingest jobs: download a CEWE photo pack with order + Secure-ID, stamp a camera label into EXIF, and upload into a configured **PhotoPrism** instance (REQ-005).
 
-Admin area (password-gated) lists users, can refresh/simulate/delete tickets, and manage users via JSON API.
+Admin area requires a Discord session plus admin capability (`ADMIN_PASSWORD` login or allowlist `is_admin`). It lists users, manages the Discord allowlist, can refresh/simulate/delete tickets, and exposes user JSON API. Boot warns while `ADMIN_PASSWORD` remains the deploy default `changeme`.
 
 ## Product goals
 
@@ -50,7 +50,9 @@ Loaded in `src/config.rs` from process env / `.env`:
 | `DISCORD_BOT_TOKEN` | no | Needed for DM features |
 | `DM_MESSAGE` | no | Default greeting for “DM me” |
 | `DM_KEY_ACCOUNT_ID` | no | Default `1320` (dm Germany) |
-| `ADMIN_PASSWORD` | yes | Admin login |
+| `DISCORD_ALLOWLIST` | no* | Comma/whitespace-separated Discord snowflake IDs; seeds `discord_allowlist` on boot (*empty = deny all logins) |
+| `DISCORD_ADMIN_IDS` | no | IDs seeded with `is_admin=1`; also grant admin without password when logged in |
+| `ADMIN_PASSWORD` | yes | Admin login; deploy Compose default `changeme` — change before production |
 | `SESSION_SECRET` | yes | ≥64 bytes, signs cookies |
 | `PHOTOPRISM_BASE_URL` | no* | PhotoPrism base URL (*required for analog ingest) |
 | `PHOTOPRISM_USERNAME` | no* | PhotoPrism login username for `POST /api/v1/session` |

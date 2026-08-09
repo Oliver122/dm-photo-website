@@ -5,9 +5,10 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crate::models::{
-    AnalogIngestJob, Ticket, User, UserCamera, UserLens, ANALOG_INGEST_STATUS_DONE,
-    ANALOG_INGEST_STATUS_DOWNLOADING, ANALOG_INGEST_STATUS_FAILED, ANALOG_INGEST_STATUS_LABELING,
-    ANALOG_INGEST_STATUS_PREVIEW, ANALOG_INGEST_STATUS_QUEUED, ANALOG_INGEST_STATUS_UPLOADING,
+    AnalogIngestJob, DiscordAllowlistEntry, Ticket, User, UserCamera, UserLens,
+    ANALOG_INGEST_STATUS_DONE, ANALOG_INGEST_STATUS_DOWNLOADING, ANALOG_INGEST_STATUS_FAILED,
+    ANALOG_INGEST_STATUS_LABELING, ANALOG_INGEST_STATUS_PREVIEW, ANALOG_INGEST_STATUS_QUEUED,
+    ANALOG_INGEST_STATUS_UPLOADING,
 };
 
 const TICKET_COLUMNS: &str = r#"
@@ -134,6 +135,197 @@ pub async fn ensure_user(
     find_by_discord_id(pool, discord_id)
         .await?
         .context("user vanished after insert")
+}
+
+// ── Discord allowlist (REQ-015) ─────────────────────────────────────────────
+
+pub async fn is_discord_allowlisted(pool: &SqlitePool, discord_id: &str) -> Result<bool> {
+    let row: Option<(i64,)> =
+        sqlx::query_as("SELECT 1 FROM discord_allowlist WHERE discord_id = ?1")
+            .bind(discord_id)
+            .fetch_optional(pool)
+            .await
+            .context("failed to check discord allowlist")?;
+    Ok(row.is_some())
+}
+
+pub async fn is_discord_allowlist_admin(pool: &SqlitePool, discord_id: &str) -> Result<bool> {
+    let row: Option<(i64,)> =
+        sqlx::query_as("SELECT 1 FROM discord_allowlist WHERE discord_id = ?1 AND is_admin = 1")
+            .bind(discord_id)
+            .fetch_optional(pool)
+            .await
+            .context("failed to check discord allowlist admin")?;
+    Ok(row.is_some())
+}
+
+pub async fn list_discord_allowlist(pool: &SqlitePool) -> Result<Vec<DiscordAllowlistEntry>> {
+    sqlx::query_as::<_, DiscordAllowlistEntry>(
+        r#"
+        SELECT discord_id, username, is_admin, created_at, created_by
+        FROM discord_allowlist
+        ORDER BY created_at ASC, discord_id ASC
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .context("failed to list discord allowlist")
+}
+
+pub async fn count_discord_allowlist_admins(pool: &SqlitePool) -> Result<i64> {
+    let (n,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM discord_allowlist WHERE is_admin = 1")
+            .fetch_one(pool)
+            .await
+            .context("failed to count allowlist admins")?;
+    Ok(n)
+}
+
+/// True when `id` looks like a Discord snowflake (non-empty ASCII digits).
+pub fn is_discord_snowflake_id(id: &str) -> bool {
+    let id = id.trim();
+    !id.is_empty() && id.chars().all(|c| c.is_ascii_digit())
+}
+
+/// Insert or update allowlist row. `created_by` is only set on insert.
+///
+/// On conflict, `is_admin=true` may promote; `is_admin=false` never demotes
+/// (demote via [`set_discord_allowlist_admin`] so the last-admin guard runs).
+pub async fn upsert_discord_allowlist(
+    pool: &SqlitePool,
+    discord_id: &str,
+    username: Option<&str>,
+    is_admin: bool,
+    created_by: &str,
+) -> Result<()> {
+    let discord_id = discord_id.trim();
+    if discord_id.is_empty() {
+        anyhow::bail!("discord_id must not be empty");
+    }
+    sqlx::query(
+        r#"
+        INSERT INTO discord_allowlist (discord_id, username, is_admin, created_by)
+        VALUES (?1, ?2, ?3, ?4)
+        ON CONFLICT(discord_id) DO UPDATE SET
+            username = COALESCE(excluded.username, discord_allowlist.username),
+            is_admin = CASE
+                WHEN excluded.is_admin = 1 THEN 1
+                ELSE discord_allowlist.is_admin
+            END
+        "#,
+    )
+    .bind(discord_id)
+    .bind(username.map(str::trim).filter(|s| !s.is_empty()))
+    .bind(is_admin)
+    .bind(created_by)
+    .execute(pool)
+    .await
+    .context("failed to upsert discord allowlist")?;
+    Ok(())
+}
+
+pub async fn update_discord_allowlist_username(
+    pool: &SqlitePool,
+    discord_id: &str,
+    username: &str,
+) -> Result<()> {
+    let username = username.trim();
+    if username.is_empty() {
+        return Ok(());
+    }
+    sqlx::query("UPDATE discord_allowlist SET username = ?1 WHERE discord_id = ?2")
+        .bind(username)
+        .bind(discord_id)
+        .execute(pool)
+        .await
+        .context("failed to update allowlist username")?;
+    Ok(())
+}
+
+pub async fn set_discord_allowlist_admin(
+    pool: &SqlitePool,
+    discord_id: &str,
+    is_admin: bool,
+) -> Result<bool> {
+    if !is_admin {
+        let admins = count_discord_allowlist_admins(pool).await?;
+        let currently_admin = is_discord_allowlist_admin(pool, discord_id).await?;
+        if currently_admin && admins <= 1 {
+            anyhow::bail!("cannot demote the last allowlist admin");
+        }
+    }
+    let result = sqlx::query("UPDATE discord_allowlist SET is_admin = ?1 WHERE discord_id = ?2")
+        .bind(is_admin)
+        .bind(discord_id)
+        .execute(pool)
+        .await
+        .context("failed to update allowlist admin flag")?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn delete_discord_allowlist(pool: &SqlitePool, discord_id: &str) -> Result<bool> {
+    if is_discord_allowlist_admin(pool, discord_id).await? {
+        let admins = count_discord_allowlist_admins(pool).await?;
+        if admins <= 1 {
+            anyhow::bail!("cannot remove the last allowlist admin");
+        }
+    }
+    let result = sqlx::query("DELETE FROM discord_allowlist WHERE discord_id = ?1")
+        .bind(discord_id)
+        .execute(pool)
+        .await
+        .context("failed to delete allowlist entry")?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Seed env allowlist/admin IDs into the DB (fail-closed OAuth reads the table).
+/// Non-numeric IDs are skipped with a warning (never inserted).
+pub async fn seed_discord_allowlist_from_config(
+    pool: &SqlitePool,
+    allowlist: &[String],
+    admin_ids: &[String],
+) -> Result<()> {
+    use std::collections::HashSet;
+    let admins: HashSet<&str> = admin_ids
+        .iter()
+        .map(|s| s.trim())
+        .filter(|id| is_discord_snowflake_id(id))
+        .collect();
+    let mut seen = HashSet::new();
+    for id in allowlist {
+        let id = id.trim();
+        if id.is_empty() || !seen.insert(id) {
+            continue;
+        }
+        if !is_discord_snowflake_id(id) {
+            tracing::warn!(
+                discord_id = %id,
+                "skipping DISCORD_ALLOWLIST entry — not a numeric snowflake"
+            );
+            continue;
+        }
+        upsert_discord_allowlist(pool, id, None, admins.contains(id), "env").await?;
+    }
+    for id in admin_ids {
+        let id = id.trim();
+        if id.is_empty() {
+            continue;
+        }
+        if !is_discord_snowflake_id(id) {
+            tracing::warn!(
+                discord_id = %id,
+                "skipping DISCORD_ADMIN_IDS entry — not a numeric snowflake"
+            );
+            continue;
+        }
+        if !seen.insert(id) {
+            // already seeded from allowlist — ensure admin flag
+            set_discord_allowlist_admin(pool, id, true).await?;
+            continue;
+        }
+        upsert_discord_allowlist(pool, id, None, true, "env").await?;
+    }
+    Ok(())
 }
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<User>> {
@@ -960,12 +1152,76 @@ mod tests {
     async fn migrations_apply_on_fresh_db() {
         let (_dir, pool) = test_pool().await;
         let tables: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'tickets', 'analog_ingest_jobs', 'user_cameras', 'user_lenses')",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'tickets', 'analog_ingest_jobs', 'user_cameras', 'user_lenses', 'discord_allowlist')",
         )
         .fetch_one(&pool)
         .await
         .expect("count tables");
-        assert_eq!(tables.0, 5);
+        assert_eq!(tables.0, 6);
+    }
+
+    #[tokio::test]
+    async fn t_015_a_seed_allowlist_id_is_allowlisted() {
+        let (_dir, pool) = test_pool().await;
+        seed_discord_allowlist_from_config(
+            &pool,
+            &[String::from("111")],
+            &[String::from("111")],
+        )
+        .await
+        .expect("seed");
+        assert!(is_discord_allowlisted(&pool, "111").await.unwrap());
+        assert!(is_discord_allowlist_admin(&pool, "111").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn t_015_b_unknown_id_not_allowlisted() {
+        let (_dir, pool) = test_pool().await;
+        seed_discord_allowlist_from_config(&pool, &[String::from("111")], &[])
+            .await
+            .expect("seed");
+        assert!(!is_discord_allowlisted(&pool, "999").await.unwrap());
+        assert!(!is_discord_allowlist_admin(&pool, "111").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn t_015_d_upsert_does_not_demote_last_admin() {
+        let (_dir, pool) = test_pool().await;
+        upsert_discord_allowlist(&pool, "111", None, true, "test")
+            .await
+            .expect("insert admin");
+        // Re-add without admin flag must preserve is_admin (last-admin safe).
+        upsert_discord_allowlist(&pool, "111", Some("name"), false, "test")
+            .await
+            .expect("upsert");
+        assert!(is_discord_allowlist_admin(&pool, "111").await.unwrap());
+        let err = set_discord_allowlist_admin(&pool, "111", false)
+            .await
+            .expect_err("demote last admin");
+        assert!(err.to_string().contains("last allowlist admin"));
+        let err = delete_discord_allowlist(&pool, "111")
+            .await
+            .expect_err("delete last admin");
+        assert!(err.to_string().contains("last allowlist admin"));
+    }
+
+    #[tokio::test]
+    async fn t_015_e_seed_skips_non_numeric_ids() {
+        let (_dir, pool) = test_pool().await;
+        seed_discord_allowlist_from_config(
+            &pool,
+            &[
+                String::from("YOUR_DISCORD_USER_ID"),
+                String::from("123456789012345678"),
+            ],
+            &[String::from("not-a-snowflake")],
+        )
+        .await
+        .expect("seed");
+        let entries = list_discord_allowlist(&pool).await.expect("list");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].discord_id, "123456789012345678");
+        assert!(!entries[0].is_admin);
     }
 
     #[tokio::test]

@@ -27,7 +27,7 @@
 ## Frontend
 
 - HTMX attributes on templates; reuse OOB ticket list helper when mutating tickets.
-- Prefer existing CSS classes in `static/styles.css` over new design systems.
+- Styling: hand-authored CSS in `static/styles.css` with design tokens (see REQ-014). **No Tailwind / Bootstrap / npm frontend toolchain** unless a REQ explicitly adds one.
 - This is not a React app — no SPA frameworks.
 
 ## Tests

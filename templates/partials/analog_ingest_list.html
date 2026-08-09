@@ -1,64 +1,80 @@
 {% if jobs.is_empty() %}
   <p class="empty-state">
     <strong>Noch keine Import-Aufträge</strong>
-    Formular ausfüllen, um einen Analog-Import zu starten.
+    Formular ausfüllen oder aus einem Auftrag importieren.
   </p>
 {% else %}
-  <table class="ingest-jobs">
-    <thead>
-      <tr>
-        <th>Auftrag</th>
-        <th>Kamera</th>
-        <th>Status</th>
-        <th>Aktualisiert</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in jobs %}
-        <tr>
-          <td><code>{{ row.job.order_number }}</code></td>
-          <td>
-            {% if let Some(line) = row.gear_line %}
-              {{ line }}
-            {% else %}
-              {{ row.job.camera_label }}
-            {% endif %}
-          </td>
-          <td>
-            <span class="status status-{{ row.job.status }}">{{ row.job.status_label_de() }}</span>
-            {% if row.job.status == "preview" %}
-              <div class="ingest-preview-cta">
-                <button
-                  type="button"
-                  class="secondary small touch-target"
-                  hx-get="/api/analog/ingest/{{ row.job.id }}/preview"
-                  hx-target="#analog-preview-panel"
-                  hx-swap="innerHTML">
-                  Vorschau bearbeiten
-                </button>
-              </div>
-            {% endif %}
-            {% if let Some(err) = row.job.error_text %}
-              <div class="error ingest-error">{{ err }}</div>
-            {% endif %}
-          </td>
-          <td>{{ row.job.updated_at.format("%d.%m.%Y %H:%M") }}</td>
-          <td class="ingest-actions">
-            {% if row.job.can_delete() %}
-              <button
-                type="button"
-                class="ghost small touch-target"
-                hx-delete="/api/analog/ingest/{{ row.job.id }}"
-                hx-confirm="Import {{ row.job.order_number }} löschen? Danach kannst du erneut importieren."
-                hx-target="#analog-ingest-list"
-                hx-swap="innerHTML">
-                Löschen
-              </button>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if preview_waiting > 0 %}
+    <p class="notice ingest-preview-banner">
+      {% if preview_waiting == 1 %}
+        1 Auftrag wartet auf Freigabe — Vorschau bearbeiten, dann Import bestätigen.
+      {% else %}
+        {{ preview_waiting }} Aufträge warten auf Freigabe — Vorschau bearbeiten, dann Import bestätigen.
+      {% endif %}
+    </p>
+  {% endif %}
+  <ul class="ingest-job-list">
+    {% for row in jobs %}
+      <li class="ingest-job" id="ingest-job-{{ row.job.id }}">
+        <div class="ingest-job-top">
+          <p class="ingest-job-order">{{ row.job.order_number }}</p>
+          <span class="status status-{{ row.job.status }}">{{ row.job.status_label_de() }}</span>
+        </div>
+        <p class="ingest-job-gear">
+          {% if let Some(line) = row.gear_line %}
+            {{ line }}
+          {% else %}
+            {{ row.job.camera_label }}
+          {% endif %}
+        </p>
+        <p class="ingest-job-album">
+          Album:
+          {% if let Some(album) = row.job.album %}
+            {{ album }}
+          {% else %}
+            Standard
+          {% endif %}
+        </p>
+        <ol class="ingest-stepper" aria-label="Importfortschritt">
+          <li class="{% if row.job.step_rank() > 0 %}past{% endif %}{% if row.job.step_rank() == 0 %}current{% endif %}">Warteschlange</li>
+          <li class="{% if row.job.step_rank() > 1 %}past{% endif %}{% if row.job.step_rank() == 1 %}current{% endif %}">Download</li>
+          <li class="{% if row.job.step_rank() > 2 %}past{% endif %}{% if row.job.step_rank() == 2 %}current{% endif %}">Vorschau</li>
+          <li class="{% if row.job.step_rank() > 3 %}past{% endif %}{% if row.job.step_rank() == 3 %}current{% endif %}">Metadaten</li>
+          <li class="{% if row.job.step_rank() > 4 %}past{% endif %}{% if row.job.step_rank() == 4 %}current{% endif %}">Upload</li>
+          <li class="{% if row.job.step_rank() == 5 %}current{% endif %}{% if row.job.status == "failed" %} is-failed{% endif %}">
+            {% if row.job.status == "failed" %}Fehler{% else %}Fertig{% endif %}
+          </li>
+        </ol>
+        <p class="ingest-job-updated">Aktualisiert {{ row.job.updated_at.format("%d.%m.%Y %H:%M") }}</p>
+        {% if let Some(err) = row.job.error_text %}
+          <div class="error ingest-error">{{ err }}</div>
+        {% endif %}
+        <div class="ingest-job-actions">
+          {% if row.job.status == "preview" %}
+            <button
+              type="button"
+              class="touch-target"
+              hx-get="/api/analog/ingest/{{ row.job.id }}/preview"
+              hx-target="#analog-preview-panel"
+              hx-swap="innerHTML"
+              hx-disabled-elt="this">
+              Vorschau bearbeiten
+            </button>
+          {% endif %}
+          {% if row.job.can_delete() %}
+            <button
+              type="button"
+              class="ghost small touch-target"
+              hx-delete="/api/analog/ingest/{{ row.job.id }}"
+              hx-confirm="Import {{ row.job.order_number }} löschen? Danach kannst du erneut importieren."
+              hx-target="#analog-ingest-list"
+              hx-swap="innerHTML"
+              hx-disabled-elt="this">
+              Löschen
+            </button>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
 {% endif %}
