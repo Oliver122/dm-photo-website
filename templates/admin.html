@@ -17,7 +17,7 @@
 
   <section class="panel">
     <h2>Discord-Allowlist</h2>
-    <p class="page-lead">Nur gelistete Discord-IDs können sich anmelden. Admins brauchen kein Extra-Passwort.</p>
+    <p class="page-lead">Nur gelistete Discord-Usernames oder IDs können sich anmelden. Admins brauchen kein Extra-Passwort.</p>
     <div id="allowlist-out" aria-live="polite"></div>
     {% include "partials/allowlist_list.html" %}
     <form
@@ -28,12 +28,8 @@
       hx-swap="outerHTML"
       hx-disabled-elt="button[type=submit]">
       <label class="field">
-        <span>Discord-ID (Snowflake)</span>
-        <input name="discord_id" inputmode="numeric" pattern="[0-9]+" required placeholder="z. B. 123456789012345678" />
-      </label>
-      <label class="field">
-        <span>Anzeigename (optional)</span>
-        <input name="username" autocomplete="off" />
+        <span>Discord-Username oder ID</span>
+        <input name="identity" required autocomplete="off" placeholder="z. B. oliver oder 123456789012345678" />
       </label>
       <label class="field row">
         <input type="checkbox" name="is_admin" value="1" />

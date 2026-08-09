@@ -806,18 +806,40 @@ async fn st_015_h_allowlist_add_htmx() {
                 .header(header::COOKIE, &cookie)
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header("HX-Request", "true")
-                .body(Body::from("discord_id=9003&username=newbie"))
+                .body(Body::from("identity=9003"))
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_text(res).await;
-    assert!(body.contains("9003") && body.contains("newbie"));
+    assert!(body.contains("9003"));
     assert!(
         db::is_discord_allowlisted(&pool, "9003")
             .await
             .expect("allowlisted")
+    );
+
+    // Add by Discord username (provisional until first OAuth).
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/allowlist")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header("HX-Request", "true")
+                .body(Body::from("identity=coolphotog"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(
+        db::is_discord_allowlisted_identity(&pool, "nope", Some("coolphotog"))
+            .await
+            .expect("username allowlisted")
     );
 
     // Re-add sole admin without checkbox must not demote.
@@ -829,7 +851,7 @@ async fn st_015_h_allowlist_add_htmx() {
                 .header(header::COOKIE, cookie)
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header("HX-Request", "true")
-                .body(Body::from("discord_id=9002&username=admin"))
+                .body(Body::from("identity=9002"))
                 .unwrap(),
         )
         .await

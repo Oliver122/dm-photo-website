@@ -313,7 +313,13 @@ pub async fn discord_callback(
         }
     };
 
-    let allowed = match db::is_discord_allowlisted(&state.db, &discord_user.id).await {
+    let allowed = match db::claim_discord_allowlist_on_login(
+        &state.db,
+        &discord_user.id,
+        &discord_user.username,
+    )
+    .await
+    {
         Ok(v) => v,
         Err(err) => {
             tracing::error!(?err, "failed to check discord allowlist");
@@ -327,13 +333,20 @@ pub async fn discord_callback(
     if !allowed {
         tracing::warn!(
             discord_id = %discord_user.id,
+            username = %discord_user.username,
             "discord login denied — not on allowlist (no users row created)"
         );
         return Redirect::to("/login?denied=1").into_response();
     }
 
     let display = discord_user.display_name().to_string();
-    let _ = db::update_discord_allowlist_username(&state.db, &discord_user.id, &display).await;
+    // Keep allowlist handle in sync (OAuth `username`), not only display name.
+    let _ = db::update_discord_allowlist_username(
+        &state.db,
+        &discord_user.id,
+        &discord_user.username,
+    )
+    .await;
 
     let user = match db::upsert_discord_user(&state.db, &discord_user.id, &display).await {
         Ok(u) => u,
