@@ -139,24 +139,156 @@ pub async fn ensure_user(
 
 // ── Discord allowlist (REQ-015) ─────────────────────────────────────────────
 
+/// Provisional PK for username-only allowlist rows until first OAuth login.
+/// Uses `u.` prefix (path-safe); never collides with numeric snowflakes.
+pub fn provisional_allowlist_id(username: &str) -> String {
+    format!("u.{}", normalize_discord_username(username))
+}
+
+pub fn normalize_discord_username(username: &str) -> String {
+    username.trim().trim_start_matches('@').to_ascii_lowercase()
+}
+
+/// Discord handle (not display name): 2–32 chars, `[a-z0-9._]`, stripped `@`.
+pub fn is_discord_username(username: &str) -> bool {
+    let u = normalize_discord_username(username);
+    let len = u.chars().count();
+    (2..=32).contains(&len)
+        && u.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '.')
+        && !is_discord_snowflake_id(&u)
+}
+
 pub async fn is_discord_allowlisted(pool: &SqlitePool, discord_id: &str) -> Result<bool> {
-    let row: Option<(i64,)> =
-        sqlx::query_as("SELECT 1 FROM discord_allowlist WHERE discord_id = ?1")
-            .bind(discord_id)
-            .fetch_optional(pool)
-            .await
-            .context("failed to check discord allowlist")?;
+    is_discord_allowlisted_identity(pool, discord_id, None).await
+}
+
+/// Allow by snowflake **or** Discord username (case-insensitive handle).
+pub async fn is_discord_allowlisted_identity(
+    pool: &SqlitePool,
+    discord_id: &str,
+    username: Option<&str>,
+) -> Result<bool> {
+    let mut q = String::from("SELECT 1 FROM discord_allowlist WHERE discord_id = ?1");
+    let uname = username
+        .map(normalize_discord_username)
+        .filter(|s| !s.is_empty());
+    if uname.is_some() {
+        q.push_str(" OR lower(username) = ?2 OR discord_id = ?3");
+    }
+    let mut query = sqlx::query_as::<_, (i64,)>(&q).bind(discord_id);
+    if let Some(ref u) = uname {
+        query = query.bind(u).bind(provisional_allowlist_id(u));
+    }
+    let row = query
+        .fetch_optional(pool)
+        .await
+        .context("failed to check discord allowlist")?;
     Ok(row.is_some())
 }
 
 pub async fn is_discord_allowlist_admin(pool: &SqlitePool, discord_id: &str) -> Result<bool> {
-    let row: Option<(i64,)> =
-        sqlx::query_as("SELECT 1 FROM discord_allowlist WHERE discord_id = ?1 AND is_admin = 1")
-            .bind(discord_id)
-            .fetch_optional(pool)
-            .await
-            .context("failed to check discord allowlist admin")?;
+    is_discord_allowlist_admin_identity(pool, discord_id, None).await
+}
+
+pub async fn is_discord_allowlist_admin_identity(
+    pool: &SqlitePool,
+    discord_id: &str,
+    username: Option<&str>,
+) -> Result<bool> {
+    let mut q =
+        String::from("SELECT 1 FROM discord_allowlist WHERE is_admin = 1 AND (discord_id = ?1");
+    let uname = username
+        .map(normalize_discord_username)
+        .filter(|s| !s.is_empty());
+    if uname.is_some() {
+        q.push_str(" OR lower(username) = ?2 OR discord_id = ?3");
+    }
+    q.push(')');
+    let mut query = sqlx::query_as::<_, (i64,)>(&q).bind(discord_id);
+    if let Some(ref u) = uname {
+        query = query.bind(u).bind(provisional_allowlist_id(u));
+    }
+    let row = query
+        .fetch_optional(pool)
+        .await
+        .context("failed to check discord allowlist admin")?;
     Ok(row.is_some())
+}
+
+/// On OAuth: if allowlisted by username under a provisional key, rewrite PK to the
+/// real snowflake (preserving `is_admin`). Returns whether the identity is allowed.
+pub async fn claim_discord_allowlist_on_login(
+    pool: &SqlitePool,
+    discord_id: &str,
+    discord_username: &str,
+) -> Result<bool> {
+    let handle = normalize_discord_username(discord_username);
+    if is_discord_allowlisted(pool, discord_id).await? {
+        if !handle.is_empty() {
+            let _ = update_discord_allowlist_username(pool, discord_id, &handle).await;
+        }
+        return Ok(true);
+    }
+    if handle.is_empty() {
+        return Ok(false);
+    }
+
+    let provisional = provisional_allowlist_id(&handle);
+    let row: Option<(String, bool)> = sqlx::query_as(
+        r#"
+        SELECT discord_id, is_admin FROM discord_allowlist
+        WHERE lower(username) = ?1 OR discord_id = ?2
+        LIMIT 1
+        "#,
+    )
+    .bind(&handle)
+    .bind(&provisional)
+    .fetch_optional(pool)
+    .await
+    .context("failed to find username allowlist row")?;
+
+    let Some((old_id, is_admin)) = row else {
+        return Ok(false);
+    };
+    if old_id == discord_id {
+        let _ = update_discord_allowlist_username(pool, discord_id, &handle).await;
+        return Ok(true);
+    }
+
+    // Move provisional/username row onto the real snowflake.
+    sqlx::query(
+        r#"
+        INSERT INTO discord_allowlist (discord_id, username, is_admin, created_by)
+        SELECT ?1, ?2, is_admin, created_by FROM discord_allowlist WHERE discord_id = ?3
+        ON CONFLICT(discord_id) DO UPDATE SET
+            username = excluded.username,
+            is_admin = CASE
+                WHEN excluded.is_admin = 1 OR discord_allowlist.is_admin = 1 THEN 1
+                ELSE 0
+            END
+        "#,
+    )
+    .bind(discord_id)
+    .bind(&handle)
+    .bind(&old_id)
+    .execute(pool)
+    .await
+    .context("failed to claim allowlist snowflake")?;
+
+    if old_id != discord_id {
+        sqlx::query("DELETE FROM discord_allowlist WHERE discord_id = ?1")
+            .bind(&old_id)
+            .execute(pool)
+            .await
+            .context("failed to remove provisional allowlist row")?;
+    }
+
+    // Preserve admin if the provisional row was admin (ON CONFLICT merge above).
+    if is_admin {
+        let _ = set_discord_allowlist_admin(pool, discord_id, true).await;
+    }
+    Ok(true)
 }
 
 pub async fn list_discord_allowlist(pool: &SqlitePool) -> Result<Vec<DiscordAllowlistEntry>> {
@@ -278,52 +410,77 @@ pub async fn delete_discord_allowlist(pool: &SqlitePool, discord_id: &str) -> Re
     Ok(result.rows_affected() > 0)
 }
 
-/// Seed env allowlist/admin IDs into the DB (fail-closed OAuth reads the table).
-/// Non-numeric IDs are skipped with a warning (never inserted).
+/// Resolve env/admin form identity to `(storage_key, username_for_row)`.
+/// Accepts snowflake ID or Discord username handle.
+pub fn resolve_allowlist_identity(raw: &str) -> Option<(String, Option<String>)> {
+    let raw = raw.trim().trim_start_matches('@');
+    if raw.is_empty() {
+        return None;
+    }
+    if is_discord_snowflake_id(raw) {
+        return Some((raw.to_string(), None));
+    }
+    if is_discord_username(raw) {
+        let handle = normalize_discord_username(raw);
+        return Some((provisional_allowlist_id(&handle), Some(handle)));
+    }
+    None
+}
+
+/// Seed env allowlist/admin entries (snowflake **or** Discord username).
+/// Invalid tokens are skipped with a warning.
 pub async fn seed_discord_allowlist_from_config(
     pool: &SqlitePool,
     allowlist: &[String],
     admin_ids: &[String],
 ) -> Result<()> {
     use std::collections::HashSet;
-    let admins: HashSet<&str> = admin_ids
-        .iter()
-        .map(|s| s.trim())
-        .filter(|id| is_discord_snowflake_id(id))
-        .collect();
-    let mut seen = HashSet::new();
-    for id in allowlist {
-        let id = id.trim();
-        if id.is_empty() || !seen.insert(id) {
-            continue;
-        }
-        if !is_discord_snowflake_id(id) {
+
+    let mut admin_keys = HashSet::new();
+    for raw in admin_ids {
+        if let Some((key, _)) = resolve_allowlist_identity(raw) {
+            admin_keys.insert(key);
+        } else if !raw.trim().is_empty() {
             tracing::warn!(
-                discord_id = %id,
-                "skipping DISCORD_ALLOWLIST entry — not a numeric snowflake"
+                entry = %raw.trim(),
+                "skipping DISCORD_ADMIN_IDS entry — not a snowflake or Discord username"
             );
-            continue;
         }
-        upsert_discord_allowlist(pool, id, None, admins.contains(id), "env").await?;
     }
-    for id in admin_ids {
-        let id = id.trim();
-        if id.is_empty() {
+
+    let mut seen = HashSet::new();
+    for raw in allowlist {
+        let Some((key, username)) = resolve_allowlist_identity(raw) else {
+            if !raw.trim().is_empty() {
+                tracing::warn!(
+                    entry = %raw.trim(),
+                    "skipping DISCORD_ALLOWLIST entry — not a snowflake or Discord username"
+                );
+            }
+            continue;
+        };
+        if !seen.insert(key.clone()) {
             continue;
         }
-        if !is_discord_snowflake_id(id) {
-            tracing::warn!(
-                discord_id = %id,
-                "skipping DISCORD_ADMIN_IDS entry — not a numeric snowflake"
-            );
+        let is_admin = admin_keys.contains(&key);
+        upsert_discord_allowlist(
+            pool,
+            &key,
+            username.as_deref(),
+            is_admin,
+            "env",
+        )
+        .await?;
+    }
+    for raw in admin_ids {
+        let Some((key, username)) = resolve_allowlist_identity(raw) else {
+            continue;
+        };
+        if !seen.insert(key.clone()) {
+            set_discord_allowlist_admin(pool, &key, true).await?;
             continue;
         }
-        if !seen.insert(id) {
-            // already seeded from allowlist — ensure admin flag
-            set_discord_allowlist_admin(pool, id, true).await?;
-            continue;
-        }
-        upsert_discord_allowlist(pool, id, None, true, "env").await?;
+        upsert_discord_allowlist(pool, &key, username.as_deref(), true, "env").await?;
     }
     Ok(())
 }
@@ -1206,22 +1363,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn t_015_e_seed_skips_non_numeric_ids() {
+    async fn t_015_e_seed_skips_invalid_accepts_username() {
         let (_dir, pool) = test_pool().await;
         seed_discord_allowlist_from_config(
             &pool,
             &[
-                String::from("YOUR_DISCORD_USER_ID"),
+                String::from("!!!bad!!!"),
                 String::from("123456789012345678"),
+                String::from("CoolPhotog"),
             ],
-            &[String::from("not-a-snowflake")],
+            &[String::from("CoolPhotog")],
         )
         .await
         .expect("seed");
         let entries = list_discord_allowlist(&pool).await.expect("list");
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].discord_id, "123456789012345678");
-        assert!(!entries[0].is_admin);
+        assert_eq!(entries.len(), 2);
+        assert!(
+            is_discord_allowlisted_identity(&pool, "nope", Some("coolphotog"))
+                .await
+                .unwrap()
+        );
+        assert!(
+            is_discord_allowlist_admin_identity(&pool, "nope", Some("coolphotog"))
+                .await
+                .unwrap()
+        );
+        assert!(
+            claim_discord_allowlist_on_login(&pool, "999888777666", "coolphotog")
+                .await
+                .unwrap()
+        );
+        assert!(is_discord_allowlisted(&pool, "999888777666").await.unwrap());
+        assert!(is_discord_allowlist_admin(&pool, "999888777666").await.unwrap());
+        // Provisional key gone after claim.
+        assert!(
+            !list_discord_allowlist(&pool)
+                .await
+                .unwrap()
+                .iter()
+                .any(|e| e.discord_id.starts_with("u."))
+        );
     }
 
     #[tokio::test]

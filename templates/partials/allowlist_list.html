@@ -5,8 +5,8 @@
     <table class="users">
       <thead>
         <tr>
-          <th>Discord-ID</th>
-          <th>Name</th>
+          <th>Username</th>
+          <th>ID</th>
           <th>Admin</th>
           <th>Quelle</th>
           <th></th>
@@ -15,12 +15,18 @@
       <tbody>
         {% for e in allowlist %}
           <tr id="allow-{{ e.discord_id }}">
-            <td data-label="Discord-ID"><code>{{ e.discord_id }}</code></td>
-            <td data-label="Name">
+            <td data-label="Username">
               {% if let Some(name) = e.username.as_ref() %}
-                {{ name }}
+                <strong>{{ name }}</strong>
               {% else %}
                 —
+              {% endif %}
+            </td>
+            <td data-label="ID">
+              {% if e.discord_id.starts_with("u.") %}
+                <span class="muted">noch kein Login</span>
+              {% else %}
+                <code>{{ e.discord_id }}</code>
               {% endif %}
             </td>
             <td data-label="Admin">
@@ -43,7 +49,7 @@
               <button
                 class="danger small"
                 hx-delete="/admin/allowlist/{{ e.discord_id }}"
-                hx-confirm="Eintrag {{ e.discord_id }} wirklich entfernen?"
+                hx-confirm="Eintrag wirklich entfernen?"
                 hx-target="#allowlist-list"
                 hx-swap="outerHTML"
                 hx-disabled-elt="this">

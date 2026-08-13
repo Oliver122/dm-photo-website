@@ -24,8 +24,8 @@ struct AllowlistListTemplate {
 
 #[derive(Debug, Deserialize)]
 pub struct AddAllowlistForm {
-    pub discord_id: String,
-    pub username: Option<String>,
+    /// Snowflake ID **or** Discord username handle.
+    pub identity: String,
     #[serde(default)]
     pub is_admin: Option<String>,
 }
@@ -82,28 +82,28 @@ pub async fn add_allowlist(
     State(state): State<AppState>,
     Form(form): Form<AddAllowlistForm>,
 ) -> Response {
-    let discord_id = form.discord_id.trim().to_string();
-    if !db::is_discord_snowflake_id(&discord_id) {
+    let Some((key, username)) = db::resolve_allowlist_identity(&form.identity) else {
         return list_with_feedback(
             &state,
             StatusCode::BAD_REQUEST,
             "error",
-            "Discord-ID muss eine numerische Snowflake-ID sein.",
+            "Bitte Discord-Username (z. B. oliver) oder numerische Snowflake-ID eingeben.",
         )
         .await;
-    }
+    };
     let is_admin = matches!(
         form.is_admin.as_deref().map(str::trim),
         Some("1") | Some("on") | Some("true") | Some("yes")
     );
-    let username = form
-        .username
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
 
-    if let Err(err) =
-        db::upsert_discord_allowlist(&state.db, &discord_id, username, is_admin, "admin").await
+    if let Err(err) = db::upsert_discord_allowlist(
+        &state.db,
+        &key,
+        username.as_deref(),
+        is_admin,
+        "admin",
+    )
+    .await
     {
         tracing::error!(?err, "failed to add allowlist entry");
         return list_with_feedback(

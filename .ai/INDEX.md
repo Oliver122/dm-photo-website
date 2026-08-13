@@ -21,7 +21,7 @@
 | Language | Rust (edition 2024), toolchain 1.94+ |
 | Web | Axum + Askama + HTMX |
 | DB | SQLite via SQLx, migrations in `migrations/` |
-| Auth | Discord OAuth (allowlist, snowflake ID) + admin gate (`ADMIN_PASSWORD` session flag or allowlist `is_admin`; Discord session required first) |
+| Auth | Discord OAuth (allowlist by snowflake ID and/or username) + admin gate (`ADMIN_PASSWORD` session flag or allowlist `is_admin`; Discord session required first) |
 | External APIs | Discord OAuth/Bot API, dm Foto `spot.photoprintit.com`, dm analog download (CEWE `api.cewe-myphotos.com`), PhotoPrism `/api/v1` (REQ-005) |
 | Planned | REQ-013 JFrog ops checklist; REQ-014 frontend redesign (see `FRONTEND-SURFACE.md`) |
 | Default listen | `127.0.0.1:8080` |

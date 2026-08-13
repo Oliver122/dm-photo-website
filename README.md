@@ -71,6 +71,7 @@ Image name must not include `https://`.
 | DELETE | `/api/users/:id`           | admin    | Deletes a user by id                     |
 
 Discord login is fail-closed: empty `DISCORD_ALLOWLIST` denies all OAuth logins.
+Allowlist entries may be Discord **usernames** (handles) and/or numeric snowflake IDs.
 Admin access needs a Discord session plus `ADMIN_PASSWORD` elevation and/or allowlist `is_admin`.
 
 ## Data

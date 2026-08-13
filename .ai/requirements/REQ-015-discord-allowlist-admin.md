@@ -9,7 +9,7 @@ Restrict Discord login to an allowlist (DB + env seed); deny OAuth before any `u
 
 ## Locked decisions
 
-- Match Discord **snowflake ID** only (not username).
+- Match Discord **snowflake ID** and/or **username handle** (case-insensitive; not display name). Username-only rows bind to snowflake on first OAuth.
 - **Empty allowlist** → deny all Discord logins (fail closed).
 - **Denied OAuth** → redirect `/login?denied=1` (German); **no `users` row** created.
 - **Admin gate:** Discord session (`AuthUser`) **and** (`ADMIN_PASSWORD` session flag **or** allowlist `is_admin`).
