@@ -1,0 +1,55 @@
+# Run the crate tests and publish Rust coverage; HTTP system tests are the frontend track.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.94
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Test
+        run: cargo test
+
+      - name: Coverage
+        run: |
+          {
+            echo '```'
+            cargo llvm-cov --lcov --html --output-path lcov.info
+            echo '```'
+            echo
+            echo 'Frontend coverage is the HTTP system tests (REQ-008).'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            lcov.info
+            target/llvm-cov/html/
