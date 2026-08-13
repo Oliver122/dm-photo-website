@@ -35,10 +35,11 @@ RUN mkdir -p /app/data/ingest \
 # Entrypoint starts as root to fix data/ ownership, then drops to app.
 USER root
 
-# Relative to WORKDIR=/app — override via .env if needed.
+# Absolute persist paths (bind/volume → /app/data). Entrypoint rewrites legacy
+# relative sqlite://data/... URLs that SQLite URI-parses incorrectly.
 ENV SERVER_ADDR=0.0.0.0:8080
-ENV DATABASE_URL=sqlite://data/app.db
-ENV ANALOG_INGEST_DIR=data/ingest
+ENV DATABASE_URL=sqlite:/app/data/app.db
+ENV ANALOG_INGEST_DIR=/app/data/ingest
 ENV STATIC_DIR=static
 
 EXPOSE 8080

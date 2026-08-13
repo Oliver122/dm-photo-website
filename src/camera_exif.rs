@@ -1,10 +1,6 @@
 use std::path::Path;
 
-use little_exif::{
-    exif_tag::ExifTag,
-    metadata::Metadata,
-    rational::uR64,
-};
+use little_exif::{exif_tag::ExifTag, metadata::Metadata, rational::uR64};
 use thiserror::Error;
 
 const DEFAULT_MAKE: &str = "Analog";
@@ -152,10 +148,11 @@ pub fn stamp_ingest_metadata(
         meta.set_tag(ExifTag::FNumber(vec![uR64::from(aperture)]));
     }
 
-    meta.write_to_file(path).map_err(|source| CameraExifError::Write {
-        path: path.display().to_string(),
-        source,
-    })?;
+    meta.write_to_file(path)
+        .map_err(|source| CameraExifError::Write {
+            path: path.display().to_string(),
+            source,
+        })?;
 
     touch_mtime(path)?;
 
@@ -211,7 +208,12 @@ mod tests {
         let mut writer = BufWriter::new(file);
         let mut encoder = JpegEncoder::new_with_quality(&mut writer, 90);
         encoder
-            .encode(img.as_raw(), img.width(), img.height(), ExtendedColorType::Rgb8)
+            .encode(
+                img.as_raw(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::Rgb8,
+            )
             .expect("encode fixture jpeg");
         writer.flush().expect("flush fixture jpeg");
     }
@@ -426,5 +428,4 @@ mod tests {
         assert_eq!(first_model(&meta).as_deref(), Some("M6"));
         assert_eq!(first_iso(&meta), Some(200));
     }
-
 }

@@ -13,42 +13,41 @@
         </tr>
       </thead>
       <tbody>
-        {% for e in allowlist %}
-          <tr id="allow-{{ e.discord_id }}">
+        {% for member in allowlist %}
+          <tr id="allow-{{ member.key }}">
             <td data-label="Username">
-              {% if let Some(name) = e.username.as_ref() %}
-                <strong>{{ name }}</strong>
-              {% else %}
-                —
+              <strong>{{ member.label }}</strong>
+              {% if member.pending %}
+                <span class="pill">ausstehend</span>
               {% endif %}
             </td>
             <td data-label="ID">
-              {% if e.discord_id.starts_with("u.") %}
+              {% if member.pending %}
                 <span class="muted">noch kein Login</span>
               {% else %}
-                <code>{{ e.discord_id }}</code>
+                <code>{{ member.key }}</code>
               {% endif %}
             </td>
             <td data-label="Admin">
-              {% if e.is_admin %}
+              {% if member.is_admin %}
                 ja
               {% else %}
                 nein
               {% endif %}
               <button
                 class="secondary small"
-                hx-post="/admin/allowlist/{{ e.discord_id }}/admin"
+                hx-post="/admin/allowlist/{{ member.key }}/admin"
                 hx-target="#allowlist-list"
                 hx-swap="outerHTML"
                 hx-disabled-elt="this">
-                {% if e.is_admin %}Admin entziehen{% else %}Als Admin{% endif %}
+                {% if member.is_admin %}Admin entziehen{% else %}Als Admin{% endif %}
               </button>
             </td>
-            <td data-label="Quelle">{{ e.created_by }}</td>
+            <td data-label="Quelle">{{ member.created_by }}</td>
             <td>
               <button
                 class="danger small"
-                hx-delete="/admin/allowlist/{{ e.discord_id }}"
+                hx-delete="/admin/allowlist/{{ member.key }}"
                 hx-confirm="Eintrag wirklich entfernen?"
                 hx-target="#allowlist-list"
                 hx-swap="outerHTML"

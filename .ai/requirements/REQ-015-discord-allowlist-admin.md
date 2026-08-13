@@ -18,7 +18,7 @@ Restrict Discord login to an allowlist (DB + env seed); deny OAuth before any `u
 
 ## Acceptance criteria
 
-- [x] `discord_allowlist` table; boot seeds IDs from `DISCORD_ALLOWLIST` / `DISCORD_ADMIN_IDS`.
+- [x] `discord_allowlist` table + `discord_pending_handles` queue; boot seeds IDs/handles from `DISCORD_ALLOWLIST` / `DISCORD_ADMIN_IDS`.
 - [x] OAuth callback checks allowlist **before** `upsert_discord_user`; denied → `/login?denied=1` (German), no `users` row.
 - [x] Empty allowlist → deny all Discord logins (fail closed).
 - [x] `AdminUser` requires Discord session (`AuthUser`) **and** admin capability (`ADMIN_KEY` or admin Discord ID / DB `is_admin`).
@@ -35,7 +35,9 @@ Restrict Discord login to an allowlist (DB + env seed); deny OAuth before any `u
 | T-015-b | − | Unknown ID → not allowlisted | `src/db.rs` |
 | T-015-c | + | Config parses comma-separated IDs | `src/config.rs` |
 | T-015-d | + | Upsert does not demote last admin; demote/delete guarded | `src/db.rs` |
-| T-015-e | + | Seed skips non-numeric IDs | `src/db.rs` |
+| T-015-e | + | Seed skips garbage; handle not allowlisted until claim copies `is_admin` and drops pending | `src/db.rs` |
+| T-015-pending | − | Pending-only handle fails `is_discord_allowlisted` | `src/db.rs` |
+| T-015-empty | − | Empty claimed + empty pending denies | `src/db.rs` |
 | ST-015-a | − | Denied OAuth path: no user row created | `src/system_tests.rs` |
 | ST-015-b | − | `GET /admin` without Discord session → redirect `/login` | `src/system_tests.rs` |
 | ST-015-c | − | Discord session, not admin → no dashboard | `src/system_tests.rs` |
@@ -48,14 +50,14 @@ Restrict Discord login to an allowlist (DB + env seed); deny OAuth before any `u
 
 ## Out of scope
 
-- Matching allowlist by Discord **username** (unstable; snowflake ID only).
+- Matching allowlist by Discord **display name**.
 - Invite links / email verification.
 - Multiple password admin accounts.
 - Changing PhotoPrism / ingest flows.
 
 ## Touches
 
-- `migrations/0009_discord_allowlist.sql`, `src/config.rs`, `src/db.rs`
+- `migrations/0009_discord_allowlist.sql`, `migrations/0010_discord_pending_handles.sql`, `src/config.rs`, `src/db.rs`
 - `src/handlers/pages.rs` (OAuth gate, login denied), `src/auth/session.rs` (admin gate)
 - Admin allowlist routes/templates
 - `deploy/app/docker-compose.yml`, `.env.example`, `deploy/app/.env.example`

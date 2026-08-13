@@ -30,7 +30,10 @@ pub fn resolve_workdir_file(work_dir: &Path, relative: &str) -> Result<PathBuf, 
         return Err(WorkdirPathError::Traversal);
     }
     for component in rel.components() {
-        if matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_)) {
+        if matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        ) {
             return Err(WorkdirPathError::Traversal);
         }
     }
@@ -69,9 +72,9 @@ pub fn list_preview_images(work_dir: &Path) -> Result<Vec<String>> {
     }
 
     let mut paths = Vec::new();
-    for entry in std::fs::read_dir(&images_dir).with_context(|| {
-        format!("read preview images dir {}", images_dir.display())
-    })? {
+    for entry in std::fs::read_dir(&images_dir)
+        .with_context(|| format!("read preview images dir {}", images_dir.display()))?
+    {
         let entry = entry.context("read preview dir entry")?;
         let path = entry.path();
         if path.is_file() && is_image_path(&path) {

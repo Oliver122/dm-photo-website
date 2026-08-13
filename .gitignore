@@ -10,6 +10,10 @@
 
 # Deploy secrets
 deploy/app/.env
+deploy/app/docker-compose.local.yml
+deploy/app/compose.yaml
+
 
 # Deploy runtime data
 deploy/app/data/
+deploy/app/docker-compose.server.yml

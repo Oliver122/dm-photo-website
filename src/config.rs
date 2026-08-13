@@ -14,14 +14,9 @@ pub struct PhotoPrismConfig {
 
 impl PhotoPrismConfig {
     pub fn is_configured(&self) -> bool {
-        self.base_url
-            .as_ref()
-            .is_some_and(|u| !u.is_empty())
+        self.base_url.as_ref().is_some_and(|u| !u.is_empty())
             && self.username.as_ref().is_some_and(|u| !u.is_empty())
-            && self
-                .app_password
-                .as_ref()
-                .is_some_and(|p| !p.is_empty())
+            && self.app_password.as_ref().is_some_and(|p| !p.is_empty())
     }
 }
 
@@ -67,14 +62,11 @@ impl Config {
             }
         }
 
-        let server_addr =
-            env::var("SERVER_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
+        let server_addr = env::var("SERVER_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
         let database_url =
             env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/app.db".to_string());
-        let discord_client_id =
-            require("DISCORD_CLIENT_ID")?;
-        let discord_client_secret =
-            require("DISCORD_CLIENT_SECRET")?;
+        let discord_client_id = require("DISCORD_CLIENT_ID")?;
+        let discord_client_secret = require("DISCORD_CLIENT_SECRET")?;
         let discord_redirect_uri = env::var("DISCORD_REDIRECT_URI")
             .unwrap_or_else(|_| "http://localhost:8080/auth/discord/callback".to_string());
         let discord_bot_token = env::var("DISCORD_BOT_TOKEN")

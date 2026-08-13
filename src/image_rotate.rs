@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
 
-use image::codecs::jpeg::JpegEncoder;
 use image::ExtendedColorType;
 use image::ImageReader;
+use image::codecs::jpeg::JpegEncoder;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -116,12 +116,10 @@ fn rotate_jpeg(path: &Path, clockwise: bool) -> Result<(), ImageRotateError> {
             path: path_str.clone(),
             source,
         })?;
-    writer
-        .flush()
-        .map_err(|source| ImageRotateError::Write {
-            path: path_str,
-            source: image::ImageError::IoError(source),
-        })?;
+    writer.flush().map_err(|source| ImageRotateError::Write {
+        path: path_str,
+        source: image::ImageError::IoError(source),
+    })?;
 
     Ok(())
 }
@@ -144,7 +142,12 @@ mod tests {
         let mut writer = BufWriter::new(file);
         let mut encoder = JpegEncoder::new_with_quality(&mut writer, 100);
         encoder
-            .encode(img.as_raw(), img.width(), img.height(), ExtendedColorType::Rgb8)
+            .encode(
+                img.as_raw(),
+                img.width(),
+                img.height(),
+                ExtendedColorType::Rgb8,
+            )
             .expect("encode test jpeg");
         writer.flush().expect("flush test jpeg");
     }
@@ -180,7 +183,11 @@ mod tests {
         }
 
         let (w2, h2) = image::open(&path).unwrap().into_rgb8().dimensions();
-        assert_eq!((w, h), (w2, h2), "four on-disk CW rotations restore dimensions");
+        assert_eq!(
+            (w, h),
+            (w2, h2),
+            "four on-disk CW rotations restore dimensions"
+        );
     }
 
     #[test]
