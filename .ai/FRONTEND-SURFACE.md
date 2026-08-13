@@ -226,12 +226,12 @@ No body. Sends configured test DM to current user’s Discord id. HTML into `#dm
 | `GET` | `/api/users` | — | JSON list (admin page uses SSR table today) |
 | `DELETE` | `/api/users/:id` | — | remove row `#user-{id}` |
 | `POST` | `/admin/allowlist` | `identity` (Discord username **or** snowflake), optional `is_admin` | Swap `#allowlist-list`; OOB notice/error → `#allowlist-out` |
-| `POST` | `/admin/allowlist/:discord_id/admin` | — | Toggle admin flag → `#allowlist-list` |
-| `DELETE` | `/admin/allowlist/:discord_id` | — | Remove entry (refuse if last admin); list + OOB `#allowlist-out` |
+| `POST` | `/admin/allowlist/:key/admin` | — | Toggle admin flag (claimed snowflake **or** pending handle) → `#allowlist-list` |
+| `DELETE` | `/admin/allowlist/:key` | — | Remove entry (refuse if last admin across claimed + pending); list + OOB `#allowlist-out` |
 
 Admin login form: `password` → `POST /admin/login` (requires Discord session first; anonymous password → redirect `/login`).
 
-**Admin allowlist panel** (`admin.html`): form (`identity` = Discord username handle or snowflake ID, optional `is_admin` checkbox) → `POST /admin/allowlist` with `hx-target="#allowlist-list"`; username-only rows are provisional until first OAuth (then bound to snowflake); toggle/delete same target; OOB feedback → `#allowlist-out`. Warning banner when `default_admin_password` is true.
+**Admin allowlist panel** (`admin.html`): form (`identity` = Discord username handle or snowflake ID, optional `is_admin` checkbox) → `POST /admin/allowlist` with `hx-target="#allowlist-list"`; username-only rows are **pending** (badge `ausstehend`) until first OAuth binds them to a snowflake; toggle/delete path param is `member.key` (snowflake or handle); OOB feedback → `#allowlist-out`. Warning banner when `default_admin_password` is true.
 
 **Login denied:** `GET /login?denied=1` after OAuth reject — German copy; account not on allowlist; contact admin.
 

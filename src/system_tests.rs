@@ -61,10 +61,7 @@ async fn st_008_c_admin_login_page_requires_discord() {
         .await
         .unwrap();
     assert!(res.status().is_redirection());
-    assert_eq!(
-        res.headers().get(header::LOCATION).unwrap(),
-        "/login"
-    );
+    assert_eq!(res.headers().get(header::LOCATION).unwrap(), "/login");
 }
 
 #[tokio::test]
@@ -117,10 +114,7 @@ async fn st_008_f_admin_dashboard_redirects_when_anonymous() {
         .await
         .unwrap();
     assert!(res.status().is_redirection());
-    assert_eq!(
-        res.headers().get(header::LOCATION).unwrap(),
-        "/login"
-    );
+    assert_eq!(res.headers().get(header::LOCATION).unwrap(), "/login");
 }
 
 #[tokio::test]
@@ -169,8 +163,7 @@ async fn st_008_h_admin_login_positive_grants_dashboard() {
         "login status {}",
         login.status()
     );
-    let cookie = cookie_from(&login)
-        .unwrap_or(user_cookie);
+    let cookie = cookie_from(&login).unwrap_or(user_cookie);
 
     let dash = app
         .oneshot(
@@ -604,10 +597,7 @@ async fn st_015_c_discord_user_not_admin_no_dashboard() {
         .await
         .unwrap();
     assert!(res.status().is_redirection());
-    assert_eq!(
-        res.headers().get(header::LOCATION).unwrap(),
-        "/admin/login"
-    );
+    assert_eq!(res.headers().get(header::LOCATION).unwrap(), "/admin/login");
 }
 
 /// REQ-015 +: allowlist admin Discord session → /admin 200.
@@ -691,7 +681,7 @@ async fn st_015_f_empty_allowlist_denies_login() {
 
     let (_dir, app, _, pool) = test_app("admin-secret").await;
     assert!(
-        db::list_discord_allowlist(&pool)
+        db::list_allowlist_members(&pool)
             .await
             .expect("list")
             .is_empty()
@@ -820,7 +810,7 @@ async fn st_015_h_allowlist_add_htmx() {
             .expect("allowlisted")
     );
 
-    // Add by Discord username (provisional until first OAuth).
+    // Add by Discord username (pending until first OAuth).
     let res = app
         .clone()
         .oneshot(
@@ -836,10 +826,22 @@ async fn st_015_h_allowlist_add_htmx() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+    let body = body_text(res).await;
     assert!(
-        db::is_discord_allowlisted_identity(&pool, "nope", Some("coolphotog"))
+        body.contains("coolphotog") && body.contains("ausstehend"),
+        "expected pending handle badge, got: {body}"
+    );
+    assert!(
+        db::list_allowlist_members(&pool)
             .await
-            .expect("username allowlisted")
+            .expect("list")
+            .iter()
+            .any(|m| m.pending && m.key == "coolphotog")
+    );
+    assert!(
+        !db::is_discord_allowlisted(&pool, "coolphotog")
+            .await
+            .expect("pending handle is not a snowflake")
     );
 
     // Re-add sole admin without checkbox must not demote.
@@ -875,7 +877,7 @@ async fn st_015_i_revoked_allowlist_clears_session() {
         .await
         .expect("user");
     let cookie = login_test_user(&app, &pool, user.id).await;
-    db::delete_discord_allowlist(&pool, "9004")
+    db::delete_allowlist_member(&pool, "9004")
         .await
         .expect("delete allowlist");
 

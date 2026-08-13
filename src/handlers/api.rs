@@ -86,9 +86,15 @@ fn render_order_status(order_number: &str, info: &dm_order::OrderInfo) -> String
 
 fn ticket_notice(ticket: &crate::models::Ticket, created: bool) -> String {
     if created {
-        format!(r#"<p class="notice">Auftrag gespeichert (#{}).</p>"#, ticket.id)
+        format!(
+            r#"<p class="notice">Auftrag gespeichert (#{}).</p>"#,
+            ticket.id
+        )
     } else {
-        format!(r#"<p class="notice">Auftrag aktualisiert (#{}).</p>"#, ticket.id)
+        format!(
+            r#"<p class="notice">Auftrag aktualisiert (#{}).</p>"#,
+            ticket.id
+        )
     }
 }
 
@@ -307,14 +313,9 @@ pub async fn create_ticket_manual(
         delivery_type: -1,
     };
 
-    match persist_ticket_for_order(
-        &state,
-        user.0.id,
-        &order_number,
-        label.as_deref(),
-        &pending,
-    )
-    .await {
+    match persist_ticket_for_order(&state, user.0.id, &order_number, label.as_deref(), &pending)
+        .await
+    {
         Ok((ticket, created)) => {
             let primary = format!(
                 r#"<p class="success">Ticket #{} {} for order <code>{}</code>. Use "Check status" to fetch the latest state from dm.</p>"#,
@@ -465,7 +466,11 @@ pub async fn simulate_ticket(_admin: AdminUser, State(state): State<AppState>) -
     )
     .await;
 
-    tracing::info!(ticket_id = ticket.id, user_id = user.id, "simulated ticket completed");
+    tracing::info!(
+        ticket_id = ticket.id,
+        user_id = user.id,
+        "simulated ticket completed"
+    );
     Html(format!(
         r#"<p class="success">Simulated ticket #{} ({}) for user <code>{}</code> set to done. Status-change DM attempted (needs DISCORD_BOT_TOKEN + shared guild).</p>"#,
         ticket.id, SIM_ORDER_NUMBER, SIM_DISCORD_ID
@@ -524,11 +529,7 @@ pub async fn delete_user(
 ) -> Response {
     match db::delete_user(&state.db, id).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found" })),
-        )
-            .into_response(),
+        Ok(false) => (StatusCode::NOT_FOUND, Json(json!({ "error": "not_found" }))).into_response(),
         Err(err) => {
             tracing::error!(?err, "failed to delete user");
             (

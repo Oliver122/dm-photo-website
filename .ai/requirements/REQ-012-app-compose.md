@@ -11,9 +11,12 @@ Run the published image via Compose with env file, SQLite volume, and pull from 
 
 - [x] `deploy/app/docker-compose.yml` pulls `image: ${DOCKER_IMAGE}` (registry host, no `https://`).
 - [x] Config only via `deploy/app/.env` (`env_file: .env`).
-- [x] Relative data paths: bind `./data` → `/app/data`, `DATABASE_URL=sqlite://data/app.db`.
+- [x] Persist via `./data` → `/app/data` **or** named volume `app_data:/app/data`.
+- [x] `DATABASE_URL` default `sqlite:/app/data/app.db` (absolute; not `sqlite://data/app.db`).
+- [x] `ANALOG_INGEST_DIR` default `/app/data/ingest`.
 - [x] Port mapping `${HOST_PORT:-8080}:8080`.
 - [x] Document Discord redirect URI note when host ≠ localhost.
+- [x] Image entrypoint (REQ-010) initializes data dirs so first `up` works without manual `mkdir`.
 
 ## Out of scope
 

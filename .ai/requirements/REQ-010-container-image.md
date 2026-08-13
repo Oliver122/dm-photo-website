@@ -5,7 +5,7 @@
 
 ## Goal
 
-Ship a production Docker image that runs the Axum binary with Askama templates and static assets, without baking secrets or relying on `CARGO_MANIFEST_DIR` at runtime.
+Ship a production Docker image that runs the Axum binary with Askama templates and static assets, without baking secrets or relying on `CARGO_MANIFEST_DIR` at runtime. The image must **self-initialize** persist paths so SQLite and ingest never fail with “unable to open database file” due to missing dirs or legacy URL forms.
 
 ## Acceptance criteria
 
@@ -16,14 +16,19 @@ Ship a production Docker image that runs the Axum binary with Askama templates a
 - [x] Runtime static path is cwd/env-relative (`STATIC_DIR` / `static`).
 - [x] `Dockerfile` + `.dockerignore` present at repo root.
 - [x] Builder stage runs `cargo test` (REQ **Tests** must pass before release binary).
+- [x] **Boot init (entrypoint):** create `/app/data` + ingest dir; `chown` to app; verify writable; rewrite legacy `DATABASE_URL` values (`sqlite://data/...`) to `sqlite:/app/data/app.db`.
+- [x] **Default ENV:** `DATABASE_URL=sqlite:/app/data/app.db`, `ANALOG_INGEST_DIR=/app/data/ingest` (absolute).
+- [x] **App init:** `main` creates ingest + DB parent dirs before `init_pool`; `init_pool` normalizes SQLite URLs.
 
 ## Tests
 
 | ID | Case | Where |
 |----|------|--------|
 | T-010-a | `cargo test` in Docker builder (enforced by Dockerfile `RUN cargo test`) | `Dockerfile` |
+| T-010-b | SQLite URL normalize (`sqlite://data/app.db` → path form) | `src/db.rs` |
 
 - [x] T-010-a
+- [x] T-010-b (`normalize_sqlite_url_absolute_and_relative`)
 
 ## Out of scope
 
@@ -33,8 +38,8 @@ Ship a production Docker image that runs the Axum binary with Askama templates a
 
 ## Touches
 
-- `Dockerfile`, `.dockerignore`
-- `src/main.rs` (static serve path fix)
+- `Dockerfile`, `docker-entrypoint.sh`, `.dockerignore`
+- `src/main.rs`, `src/db.rs` (dir create + URL normalize)
 
 ## Depends on
 

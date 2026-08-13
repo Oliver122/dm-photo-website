@@ -17,12 +17,12 @@ use crate::{
         },
     },
     db,
-    models::{DiscordAllowlistEntry, Ticket, User, UserCamera, UserLens},
+    models::{AllowlistMember, Ticket, User, UserCamera, UserLens},
     state::AppState,
 };
 
-use super::tickets;
 use super::analog_ingest;
+use super::tickets;
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -60,7 +60,7 @@ struct AdminTemplate {
     current_user: Option<User>,
     is_admin: bool,
     users: Vec<User>,
-    allowlist: Vec<DiscordAllowlistEntry>,
+    allowlist: Vec<AllowlistMember>,
     default_admin_password: bool,
 }
 
@@ -227,7 +227,7 @@ pub async fn admin_dashboard(
                 .into_response();
         }
     };
-    let allowlist = match db::list_discord_allowlist(&state.db).await {
+    let allowlist = match db::list_allowlist_members(&state.db).await {
         Ok(entries) => entries,
         Err(err) => {
             tracing::error!(?err, "failed to list allowlist");
@@ -255,7 +255,10 @@ pub async fn logout(session: Session) -> Redirect {
 
 pub async fn discord_start(State(state): State<AppState>, session: Session) -> Response {
     let (url, csrf) = build_authorize_url(&state.oauth);
-    if let Err(err) = session.insert(OAUTH_STATE_KEY, csrf.secret().to_string()).await {
+    if let Err(err) = session
+        .insert(OAUTH_STATE_KEY, csrf.secret().to_string())
+        .await
+    {
         tracing::error!(?err, "failed to write oauth state");
         return (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -323,11 +326,7 @@ pub async fn discord_callback(
         Ok(v) => v,
         Err(err) => {
             tracing::error!(?err, "failed to check discord allowlist");
-            return (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "db error",
-            )
-                .into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
         }
     };
     if !allowed {
@@ -341,12 +340,9 @@ pub async fn discord_callback(
 
     let display = discord_user.display_name().to_string();
     // Keep allowlist handle in sync (OAuth `username`), not only display name.
-    let _ = db::update_discord_allowlist_username(
-        &state.db,
-        &discord_user.id,
-        &discord_user.username,
-    )
-    .await;
+    let _ =
+        db::update_discord_allowlist_username(&state.db, &discord_user.id, &discord_user.username)
+            .await;
 
     let user = match db::upsert_discord_user(&state.db, &discord_user.id, &display).await {
         Ok(u) => u,

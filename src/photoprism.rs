@@ -146,12 +146,8 @@ impl PhotoPrismClient {
                 self.stage_file(&upload_url, path, &session.access_token)
                     .await?;
             }
-            self.commit_import(
-                &upload_url,
-                album_uid.as_deref(),
-                &session.access_token,
-            )
-            .await?;
+            self.commit_import(&upload_url, album_uid.as_deref(), &session.access_token)
+                .await?;
             Ok(())
         }
         .await;
@@ -245,10 +241,7 @@ impl PhotoPrismClient {
             return Err(PhotoPrismError::SessionLogin { status, body });
         }
 
-        let parsed: SessionResponse = response
-            .json()
-            .await
-            .map_err(PhotoPrismError::Network)?;
+        let parsed: SessionResponse = response.json().await.map_err(PhotoPrismError::Network)?;
         let session = active_session_from_response(parsed, self.expected_user_uid.as_deref())?;
         Ok(session)
     }
@@ -272,10 +265,12 @@ impl PhotoPrismClient {
         path: &Path,
         access_token: &str,
     ) -> Result<(), PhotoPrismError> {
-        let bytes = tokio::fs::read(path).await.map_err(|source| PhotoPrismError::ReadFile {
-            path: path.display().to_string(),
-            source,
-        })?;
+        let bytes = tokio::fs::read(path)
+            .await
+            .map_err(|source| PhotoPrismError::ReadFile {
+                path: path.display().to_string(),
+                source,
+            })?;
 
         let file_name = path
             .file_name()
@@ -379,7 +374,11 @@ mod tests {
     fn upload_token_matches_photoprism_shape() {
         let token = generate_upload_token();
         assert_eq!(token.len(), 7);
-        assert!(token.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+        assert!(
+            token
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        );
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{copy, BufReader};
+use std::io::{BufReader, copy};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -135,9 +135,7 @@ pub async fn fetch_metadata(
 ) -> Result<Metadata, DmAnalogError> {
     validate_credentials(order, secure)?;
 
-    let response = api_get(http, &metadata_url(order, secure))
-        .send()
-        .await?;
+    let response = api_get(http, &metadata_url(order, secure)).send().await?;
     let status = response.status().as_u16();
 
     if !response.status().is_success() {
@@ -164,9 +162,7 @@ pub async fn download_zip(
 ) -> Result<(), DmAnalogError> {
     validate_credentials(order, secure)?;
 
-    let response = api_get(http, &download_url(order, secure))
-        .send()
-        .await?;
+    let response = api_get(http, &download_url(order, secure)).send().await?;
     let status = response.status().as_u16();
 
     if !response.status().is_success() {
@@ -260,7 +256,10 @@ mod tests {
 
     #[test]
     fn validate_secure_id_is_case_sensitive_length_eight() {
-        assert!(validate_secure_id("h5ggx3t5").is_ok(), "lowercase is valid alphanumeric");
+        assert!(
+            validate_secure_id("h5ggx3t5").is_ok(),
+            "lowercase is valid alphanumeric"
+        );
         assert!(matches!(
             validate_secure_id("H5GGX3T"),
             Err(DmAnalogError::InvalidSecureId)

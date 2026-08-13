@@ -19,9 +19,9 @@ Canonical route table for the **current** codebase (`src/main.rs`). Root `README
 | POST | `/admin/tickets/refresh` | admin | api | Run refresh cycle now |
 | DELETE | `/admin/tickets` | admin | api | Delete all tickets |
 | POST | `/admin/tickets/simulate` | admin | api | Create simulated ticket |
-| POST | `/admin/allowlist` | admin | api | Add Discord ID to allowlist (optional admin flag) |
-| POST | `/admin/allowlist/:discord_id/admin` | admin | api | Toggle `is_admin` on allowlist row |
-| DELETE | `/admin/allowlist/:discord_id` | admin | api | Remove ID from allowlist (last-admin guard) |
+| POST | `/admin/allowlist` | admin | api | Add Discord snowflake or handle (optional admin flag) |
+| POST | `/admin/allowlist/:key/admin` | admin | api | Toggle `is_admin` (claimed snowflake or pending handle) |
+| DELETE | `/admin/allowlist/:key` | admin | api | Remove member (last-admin counts claimed + pending) |
 | POST | `/api/gear/cameras` | user | gear | HTMX: add camera (label) |
 | DELETE | `/api/gear/cameras/:id` | user | gear | HTMX: delete own camera |
 | POST | `/api/gear/lenses` | user | gear | HTMX: add lens (name, focal_mm, aperture) |
@@ -61,6 +61,7 @@ Migrations (embedded via SQLx in `db::init_pool`):
 | `0007_analog_ingest_partial_unique.sql` | partial unique on done jobs |
 | `0008_user_gear.sql` | `user_cameras`, `user_lenses`; ticket + job gear FKs/ISO |
 | `0009_discord_allowlist.sql` | `discord_allowlist` (REQ-015) |
+| `0010_discord_pending_handles.sql` | `discord_pending_handles` (handle queue until OAuth claim) |
 
 Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 
@@ -68,13 +69,22 @@ Sessions table owned by `tower-sessions-sqlx-store` (separate migrate).
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `discord_id` | TEXT PK | Discord snowflake |
-| `username` | TEXT NULL | Display label; not used for matching |
+| `discord_id` | TEXT PK | Discord snowflake (claimed only) |
+| `username` | TEXT NULL | Handle after claim; not used for session matching |
 | `is_admin` | INTEGER bool | 0/1; admin capability without password when logged in |
 | `created_at` | TEXT | |
 | `created_by` | TEXT | `env` or `admin` |
 
-Boot upserts IDs from `DISCORD_ALLOWLIST` / `DISCORD_ADMIN_IDS`. OAuth denied if ID not in table.
+### `discord_pending_handles` (REQ-015)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `handle` | TEXT PK | Lowercased Discord username (not display name) |
+| `is_admin` | INTEGER bool | Copied onto the snowflake row at claim |
+| `created_at` | TEXT | |
+| `created_by` | TEXT | `env` or `admin` |
+
+Boot seeds `DISCORD_ALLOWLIST` / `DISCORD_ADMIN_IDS` (snowflake or handle). Handles stay pending until first OAuth: `claim_discord_allowlist_on_login` inserts a snowflake row (keeps `is_admin`) and drops the pending handle. Session and `is_discord_allowlisted` stay snowflake-only. Empty claimed + empty pending is fail-closed. Last-admin counts both tables. Path params for toggle/delete may be a snowflake or a pending handle.
 
 ### `users`
 

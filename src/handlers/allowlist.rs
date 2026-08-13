@@ -9,17 +9,12 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{
-    auth::session::AdminUser,
-    db,
-    models::DiscordAllowlistEntry,
-    state::AppState,
-};
+use crate::{auth::session::AdminUser, db, models::AllowlistMember, state::AppState};
 
 #[derive(Template)]
 #[template(path = "partials/allowlist_list.html")]
 struct AllowlistListTemplate {
-    allowlist: Vec<DiscordAllowlistEntry>,
+    allowlist: Vec<AllowlistMember>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,7 +54,7 @@ async fn list_with_feedback(
 }
 
 async fn render_list(state: &AppState) -> Result<String, Response> {
-    let entries = db::list_discord_allowlist(&state.db).await.map_err(|err| {
+    let entries = db::list_allowlist_members(&state.db).await.map_err(|err| {
         tracing::error!(?err, "failed to list allowlist");
         html_error_only(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -82,7 +77,7 @@ pub async fn add_allowlist(
     State(state): State<AppState>,
     Form(form): Form<AddAllowlistForm>,
 ) -> Response {
-    let Some((key, username)) = db::resolve_allowlist_identity(&form.identity) else {
+    let Some(token) = db::parse_allowlist_token(&form.identity) else {
         return list_with_feedback(
             &state,
             StatusCode::BAD_REQUEST,
@@ -96,15 +91,7 @@ pub async fn add_allowlist(
         Some("1") | Some("on") | Some("true") | Some("yes")
     );
 
-    if let Err(err) = db::upsert_discord_allowlist(
-        &state.db,
-        &key,
-        username.as_deref(),
-        is_admin,
-        "admin",
-    )
-    .await
-    {
+    if let Err(err) = db::add_allowlist_member(&state.db, token, is_admin, "admin").await {
         tracing::error!(?err, "failed to add allowlist entry");
         return list_with_feedback(
             &state,
@@ -115,22 +102,16 @@ pub async fn add_allowlist(
         .await;
     }
 
-    list_with_feedback(
-        &state,
-        StatusCode::OK,
-        "notice",
-        "Eintrag gespeichert.",
-    )
-    .await
+    list_with_feedback(&state, StatusCode::OK, "notice", "Eintrag gespeichert.").await
 }
 
 pub async fn toggle_allowlist_admin(
     _admin: AdminUser,
     State(state): State<AppState>,
-    Path(discord_id): Path<String>,
+    Path(key): Path<String>,
 ) -> Response {
-    let is_admin = match db::is_discord_allowlist_admin(&state.db, &discord_id).await {
-        Ok(current) => !current,
+    let members = match db::list_allowlist_members(&state.db).await {
+        Ok(m) => m,
         Err(err) => {
             tracing::error!(?err, "failed to read allowlist admin");
             return list_with_feedback(
@@ -142,8 +123,18 @@ pub async fn toggle_allowlist_admin(
             .await;
         }
     };
+    let Some(member) = members.iter().find(|m| m.key == key) else {
+        return list_with_feedback(
+            &state,
+            StatusCode::NOT_FOUND,
+            "error",
+            "Eintrag nicht gefunden.",
+        )
+        .await;
+    };
+    let is_admin = !member.is_admin;
 
-    match db::set_discord_allowlist_admin(&state.db, &discord_id, is_admin).await {
+    match db::set_allowlist_member_admin(&state.db, &key, is_admin).await {
         Ok(true) => {}
         Ok(false) => {
             return list_with_feedback(
@@ -185,9 +176,9 @@ pub async fn toggle_allowlist_admin(
 pub async fn delete_allowlist(
     _admin: AdminUser,
     State(state): State<AppState>,
-    Path(discord_id): Path<String>,
+    Path(key): Path<String>,
 ) -> Response {
-    match db::delete_discord_allowlist(&state.db, &discord_id).await {
+    match db::delete_allowlist_member(&state.db, &key).await {
         Ok(true) => {}
         Ok(false) => {
             return list_with_feedback(
@@ -220,11 +211,5 @@ pub async fn delete_allowlist(
         }
     }
 
-    list_with_feedback(
-        &state,
-        StatusCode::OK,
-        "notice",
-        "Eintrag gelöscht.",
-    )
-    .await
+    list_with_feedback(&state, StatusCode::OK, "notice", "Eintrag gelöscht.").await
 }

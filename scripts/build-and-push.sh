@@ -8,7 +8,7 @@ ARTIFACTORY_DOCKER_REGISTRY="dm-registry.olivers-homelab2.cc"
 ARTIFACTORY_USER="YOURUSER"
 ARTIFACTORY_TOKEN="YOURPASS"
 IMAGE_NAME="dm-photo-website"
-TAG="v0.1.0"
+TAG="v0.3.1"
 PUSH_LATEST="1"
 # -----------------------------------
 

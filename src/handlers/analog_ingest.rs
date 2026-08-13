@@ -14,11 +14,8 @@ use crate::{
         remove_job_workdir, resolve_workdir_file,
     },
     auth::session::AuthUser,
-    camera_exif,
-    db,
-    dm_analog,
-    image_rotate,
-    models::{AnalogIngestJob, ANALOG_INGEST_STATUS_PREVIEW},
+    camera_exif, db, dm_analog, image_rotate,
+    models::{ANALOG_INGEST_STATUS_PREVIEW, AnalogIngestJob},
     state::AppState,
 };
 
@@ -88,9 +85,7 @@ pub(crate) async fn resolve_ingest_gear(
         let label = camera_label_input
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .ok_or_else(|| {
-                html_error(StatusCode::BAD_REQUEST, "Kamera-Bezeichnung fehlt.")
-            })?;
+            .ok_or_else(|| html_error(StatusCode::BAD_REQUEST, "Kamera-Bezeichnung fehlt."))?;
         camera_exif::label_to_make_model(label).map_err(|err| {
             html_error(
                 StatusCode::BAD_REQUEST,
@@ -111,7 +106,10 @@ pub(crate) async fn resolve_ingest_gear(
                 )
             })?;
         if lens.is_none() {
-            return Err(html_error(StatusCode::BAD_REQUEST, "Objektiv nicht gefunden."));
+            return Err(html_error(
+                StatusCode::BAD_REQUEST,
+                "Objektiv nicht gefunden.",
+            ));
         }
     }
 
@@ -462,7 +460,10 @@ pub async fn preview_image(
     let content_type = content_type_for_path(&resolved);
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "no-store")],
+        [
+            (header::CONTENT_TYPE, content_type),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
         Body::from(bytes),
     )
         .into_response()
@@ -531,7 +532,11 @@ pub async fn preview_confirm(
     match db::confirm_analog_ingest_preview_for_user(&state.db, job_id, user.0.id).await {
         Ok(true) => {
             state.preview_rotations.clear_job(job_id);
-            tracing::info!(job_id, user_id = user.0.id, "analog ingest preview confirmed");
+            tracing::info!(
+                job_id,
+                user_id = user.0.id,
+                "analog ingest preview confirmed"
+            );
             list_ingest_jobs_clearing_preview(user, state).await
         }
         Ok(false) => html_error(
@@ -557,10 +562,18 @@ pub async fn preview_cancel(
         Ok(true) => {
             let work_dir = job_work_dir(&state.config.analog_ingest_dir, job_id);
             if let Err(err) = remove_job_workdir(&work_dir).await {
-                tracing::warn!(job_id, ?err, "failed to remove preview workdir after cancel");
+                tracing::warn!(
+                    job_id,
+                    ?err,
+                    "failed to remove preview workdir after cancel"
+                );
             }
             state.preview_rotations.clear_job(job_id);
-            tracing::info!(job_id, user_id = user.0.id, "analog ingest preview cancelled");
+            tracing::info!(
+                job_id,
+                user_id = user.0.id,
+                "analog ingest preview cancelled"
+            );
             list_ingest_jobs_clearing_preview(user, state).await
         }
         Ok(false) => html_error(
@@ -569,10 +582,7 @@ pub async fn preview_cancel(
         ),
         Err(err) => {
             tracing::error!(?err, job_id, "failed to cancel preview");
-            html_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Abbruch fehlgeschlagen.",
-            )
+            html_error(StatusCode::INTERNAL_SERVER_ERROR, "Abbruch fehlgeschlagen.")
         }
     }
 }
@@ -585,7 +595,10 @@ async fn load_preview_job(
     let job = match db::get_analog_ingest_job(&state.db, job_id).await {
         Ok(Some(job)) => job,
         Ok(None) => {
-            return Err(html_error(StatusCode::NOT_FOUND, "Import-Auftrag nicht gefunden."));
+            return Err(html_error(
+                StatusCode::NOT_FOUND,
+                "Import-Auftrag nicht gefunden.",
+            ));
         }
         Err(err) => {
             tracing::error!(?err, job_id, "failed to load ingest job");
@@ -597,7 +610,10 @@ async fn load_preview_job(
     };
 
     if job.user_id != user_id {
-        return Err(html_error(StatusCode::NOT_FOUND, "Import-Auftrag nicht gefunden."));
+        return Err(html_error(
+            StatusCode::NOT_FOUND,
+            "Import-Auftrag nicht gefunden.",
+        ));
     }
 
     if job.status != ANALOG_INGEST_STATUS_PREVIEW {
@@ -631,9 +647,7 @@ async fn render_preview(state: &AppState, job: AnalogIngestJob) -> Response {
                 .next()
                 .unwrap_or(&relative_path)
                 .to_string();
-            let quarters = state
-                .preview_rotations
-                .get_quarter(job.id, &relative_path);
+            let quarters = state.preview_rotations.get_quarter(job.id, &relative_path);
             PreviewImage {
                 relative_path,
                 file_name,
@@ -671,9 +685,5 @@ fn flush_preview_rotations_to_disk(
 }
 
 fn html_error(status: StatusCode, message: &str) -> Response {
-    (
-        status,
-        Html(format!(r#"<p class="error">{message}</p>"#)),
-    )
-        .into_response()
+    (status, Html(format!(r#"<p class="error">{message}</p>"#))).into_response()
 }

@@ -70,7 +70,10 @@ pub async fn gear_page(
     }
 }
 
-async fn render_cameras_list_html(user_id: i64, pool: &sqlx::SqlitePool) -> Result<String, Response> {
+async fn render_cameras_list_html(
+    user_id: i64,
+    pool: &sqlx::SqlitePool,
+) -> Result<String, Response> {
     let cameras = db::list_user_cameras(pool, user_id).await.map_err(|err| {
         tracing::error!(?err, "failed to list user cameras");
         html_error(
@@ -78,18 +81,19 @@ async fn render_cameras_list_html(user_id: i64, pool: &sqlx::SqlitePool) -> Resu
             "Kameras konnten nicht geladen werden.",
         )
     })?;
-    CamerasListTemplate { cameras }
-        .render()
-        .map_err(|err| {
-            tracing::error!(?err, "failed to render cameras list");
-            html_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Kameras konnten nicht angezeigt werden.",
-            )
-        })
+    CamerasListTemplate { cameras }.render().map_err(|err| {
+        tracing::error!(?err, "failed to render cameras list");
+        html_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Kameras konnten nicht angezeigt werden.",
+        )
+    })
 }
 
-async fn render_lenses_list_html(user_id: i64, pool: &sqlx::SqlitePool) -> Result<String, Response> {
+async fn render_lenses_list_html(
+    user_id: i64,
+    pool: &sqlx::SqlitePool,
+) -> Result<String, Response> {
     let lenses = db::list_user_lenses(pool, user_id).await.map_err(|err| {
         tracing::error!(?err, "failed to list user lenses");
         html_error(
@@ -97,27 +101,21 @@ async fn render_lenses_list_html(user_id: i64, pool: &sqlx::SqlitePool) -> Resul
             "Objektive konnten nicht geladen werden.",
         )
     })?;
-    LensesListTemplate { lenses }
-        .render()
-        .map_err(|err| {
-            tracing::error!(?err, "failed to render lenses list");
-            html_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Objektive konnten nicht angezeigt werden.",
-            )
-        })
+    LensesListTemplate { lenses }.render().map_err(|err| {
+        tracing::error!(?err, "failed to render lenses list");
+        html_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Objektive konnten nicht angezeigt werden.",
+        )
+    })
 }
 
 fn with_cameras_oob(list: String, out_html: String) -> String {
-    format!(
-        r#"{out_html}<div id="gear-cameras-list" hx-swap-oob="innerHTML">{list}</div>"#
-    )
+    format!(r#"{out_html}<div id="gear-cameras-list" hx-swap-oob="innerHTML">{list}</div>"#)
 }
 
 fn with_lenses_oob(list: String, out_html: String) -> String {
-    format!(
-        r#"{out_html}<div id="gear-lenses-list" hx-swap-oob="innerHTML">{list}</div>"#
-    )
+    format!(r#"{out_html}<div id="gear-lenses-list" hx-swap-oob="innerHTML">{list}</div>"#)
 }
 
 fn camera_error_message(err: &anyhow::Error) -> String {
@@ -188,17 +186,18 @@ pub async fn create_camera(
     match db::create_user_camera(&state.db, user.0.id, &form.label).await {
         Ok(_) => match render_cameras_list_html(user.0.id, &state.db).await {
             Ok(list) => {
-                let out = r#"<div id="gear-cameras-out"><p class="notice">Kamera gespeichert.</p></div>"#;
+                let out =
+                    r#"<div id="gear-cameras-out"><p class="notice">Kamera gespeichert.</p></div>"#;
                 Html(with_cameras_oob(list, out.to_string())).into_response()
             }
             Err(resp) => resp,
-        }
+        },
         Err(err) => {
             let message = camera_error_message(&err);
             Html(format!(
                 r#"<div id="gear-cameras-out"><p class="error">{message}</p></div>"#
             ))
-                .into_response()
+            .into_response()
         }
     }
 }
@@ -212,7 +211,7 @@ pub async fn delete_camera(
         Ok(true) => match render_cameras_list_html(user.0.id, &state.db).await {
             Ok(list) => Html(list).into_response(),
             Err(resp) => resp,
-        }
+        },
         Ok(false) => html_error(StatusCode::NOT_FOUND, "Kamera nicht gefunden."),
         Err(err) => {
             tracing::error!(?err, "failed to delete user camera");
@@ -235,7 +234,7 @@ pub async fn create_lens(
             return Html(format!(
                 r#"<div id="gear-lenses-out"><p class="error">{message}</p></div>"#
             ))
-                .into_response();
+            .into_response();
         }
     };
 
@@ -246,13 +245,13 @@ pub async fn create_lens(
                 Html(with_lenses_oob(list, out.to_string())).into_response()
             }
             Err(resp) => resp,
-        }
+        },
         Err(err) => {
             let message = lens_error_message(&err);
             Html(format!(
                 r#"<div id="gear-lenses-out"><p class="error">{message}</p></div>"#
             ))
-                .into_response()
+            .into_response()
         }
     }
 }
@@ -266,7 +265,7 @@ pub async fn delete_lens(
         Ok(true) => match render_lenses_list_html(user.0.id, &state.db).await {
             Ok(list) => Html(list).into_response(),
             Err(resp) => resp,
-        }
+        },
         Ok(false) => html_error(StatusCode::NOT_FOUND, "Objektiv nicht gefunden."),
         Err(err) => {
             tracing::error!(?err, "failed to delete user lens");
@@ -279,9 +278,5 @@ pub async fn delete_lens(
 }
 
 fn html_error(status: StatusCode, message: &str) -> Response {
-    (
-        status,
-        Html(format!(r#"<p class="error">{message}</p>"#)),
-    )
-        .into_response()
+    (status, Html(format!(r#"<p class="error">{message}</p>"#))).into_response()
 }

@@ -7,8 +7,8 @@ use crate::{
     camera_exif, db, dm_analog,
     dm_analog::DmAnalogError,
     models::{
-        AnalogIngestJob, ANALOG_INGEST_STATUS_DONE, ANALOG_INGEST_STATUS_FAILED,
-        ANALOG_INGEST_STATUS_PREVIEW,
+        ANALOG_INGEST_STATUS_DONE, ANALOG_INGEST_STATUS_FAILED, ANALOG_INGEST_STATUS_PREVIEW,
+        AnalogIngestJob,
     },
     photoprism::PhotoPrismClient,
     state::AppState,
@@ -180,10 +180,7 @@ async fn process_labeling_job_inner(
     )
     .context("failed to build PhotoPrism client")?;
 
-    let album = job
-        .album
-        .as_deref()
-        .or(pp.default_album.as_deref());
+    let album = job.album.as_deref().or(pp.default_album.as_deref());
 
     let paths: Vec<PathBuf> = image_paths;
     client

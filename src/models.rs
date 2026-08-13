@@ -10,11 +10,20 @@ pub struct User {
     pub last_login: DateTime<Utc>,
 }
 
+/// Parsed allowlist identity from env or the admin add form.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AllowlistToken {
+    Snowflake(String),
+    Handle(String),
+}
+
+/// Admin-list row: claimed snowflake or pending handle.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct DiscordAllowlistEntry {
-    pub discord_id: String,
-    pub username: Option<String>,
+pub struct AllowlistMember {
+    pub key: String,
+    pub label: String,
     pub is_admin: bool,
+    pub pending: bool,
     pub created_at: DateTime<Utc>,
     pub created_by: String,
 }
@@ -40,7 +49,11 @@ pub struct UserLens {
 impl UserLens {
     /// Compact display for lists, e.g. `50 mm · f/2.4`.
     pub fn spec_label(&self) -> String {
-        format!("{} mm · f/{}", format_lens_number(self.focal_mm), format_lens_number(self.aperture))
+        format!(
+            "{} mm · f/{}",
+            format_lens_number(self.focal_mm),
+            format_lens_number(self.aperture)
+        )
     }
 }
 
@@ -284,7 +297,9 @@ mod tests {
         job.status = ANALOG_INGEST_STATUS_FAILED.into();
         assert_eq!(job.status_label_de(), "Fehler");
         assert!(job.is_terminal());
-        assert!(is_valid_analog_ingest_status(ANALOG_INGEST_STATUS_UPLOADING));
+        assert!(is_valid_analog_ingest_status(
+            ANALOG_INGEST_STATUS_UPLOADING
+        ));
         job.status = ANALOG_INGEST_STATUS_PREVIEW.into();
         assert_eq!(job.status_label_de(), "Vorschau");
         assert!(!job.is_terminal());
@@ -320,16 +335,15 @@ mod tests {
             job.gear_line(Some(&lens)).as_deref(),
             Some("Canon AE-1 · ISO 400 · 50mm f/2.4")
         );
-        assert_eq!(
-            job.gear_line(None).as_deref(),
-            Some("Canon AE-1 · ISO 400")
+        assert_eq!(job.gear_line(None).as_deref(), Some("Canon AE-1 · ISO 400"));
+        assert!(
+            AnalogIngestJob {
+                film_iso: None,
+                lens_id: None,
+                ..job
+            }
+            .gear_line(None)
+            .is_none()
         );
-        assert!(AnalogIngestJob {
-            film_iso: None,
-            lens_id: None,
-            ..job
-        }
-        .gear_line(None)
-        .is_none());
     }
 }

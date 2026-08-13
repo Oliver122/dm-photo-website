@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl,
-    RequestTokenError, Scope, TokenUrl, basic::BasicClient, reqwest::async_http_client,
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, RequestTokenError,
+    Scope, TokenUrl, basic::BasicClient, reqwest::async_http_client,
 };
 use serde::Deserialize;
 

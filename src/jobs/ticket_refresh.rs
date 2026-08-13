@@ -116,9 +116,7 @@ pub async fn notify_status_change(
             ticket.order_number, detail
         )
     } else {
-        let detail = state_text
-            .map(|d| format!(" ({d})"))
-            .unwrap_or_default();
+        let detail = state_text.map(|d| format!(" ({d})")).unwrap_or_default();
         format!(
             "Status update for your dm Foto order {}: {} -> {}{}",
             ticket.order_number, old_code, new_code, detail

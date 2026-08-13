@@ -109,10 +109,23 @@ pub struct TimelineStep {
 fn step_sequence(delivery_type: i64) -> &'static [&'static str] {
     if delivery_type == 1 {
         // Home delivery includes a transport leg.
-        &["SUBMITTED", "PROCESSING", "SHIPPED", "TRANSPORT", "DELIVERED", "PICKED_UP"]
+        &[
+            "SUBMITTED",
+            "PROCESSING",
+            "SHIPPED",
+            "TRANSPORT",
+            "DELIVERED",
+            "PICKED_UP",
+        ]
     } else {
         // Pickup in a dm-Markt (Filiale).
-        &["SUBMITTED", "PROCESSING", "SHIPPED", "DELIVERED", "PICKED_UP"]
+        &[
+            "SUBMITTED",
+            "PROCESSING",
+            "SHIPPED",
+            "DELIVERED",
+            "PICKED_UP",
+        ]
     }
 }
 
@@ -274,7 +287,10 @@ mod tests {
         assert_eq!(steps[1].status, StepStatus::Past); // PROCESSING
         assert_eq!(steps[2].code, "SHIPPED");
         assert_eq!(steps[2].status, StepStatus::Current);
-        assert_eq!(steps[2].label, "Dein Auftrag wird in den dm-Markt geliefert.");
+        assert_eq!(
+            steps[2].label,
+            "Dein Auftrag wird in den dm-Markt geliefert."
+        );
         assert_eq!(steps[3].status, StepStatus::Future); // DELIVERED
     }
 

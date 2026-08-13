@@ -79,6 +79,7 @@ Image name must not include `https://`.
 
 Discord login is fail-closed: empty `DISCORD_ALLOWLIST` denies all OAuth logins.
 Allowlist entries may be Discord **usernames** (handles) and/or numeric snowflake IDs.
+Handles stay pending until first OAuth, then bind to the snowflake. Session checks are snowflake-only.
 Admin access needs a Discord session plus `ADMIN_PASSWORD` elevation and/or allowlist `is_admin`.
 
 ## Data
@@ -93,6 +94,7 @@ Admin access needs a Discord session plus `ADMIN_PASSWORD` elevation and/or allo
 | `created_at`| TEXT    | ISO timestamp               |
 | `last_login`| TEXT    | ISO timestamp               |
 
-`discord_allowlist` gates login (`discord_id` PK, optional `username`, `is_admin`).
+`discord_allowlist` gates login by snowflake (`discord_id` PK, optional `username`, `is_admin`).
+`discord_pending_handles` queues usernames until first OAuth claim.
 
 The `tower_sessions` session table is created automatically by the store.

@@ -46,11 +46,22 @@ async fn main() -> Result<()> {
         );
     }
 
-    if let Some(parent) = config.analog_ingest_dir.parent() {
-        if !parent.as_os_str().is_empty() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .with_context(|| format!("failed to create {}", parent.display()))?;
+    // Ensure runtime dirs exist before opening SQLite / starting workers.
+    tokio::fs::create_dir_all(&config.analog_ingest_dir)
+        .await
+        .with_context(|| {
+            format!(
+                "failed to create analog ingest dir {}",
+                config.analog_ingest_dir.display()
+            )
+        })?;
+    if let Some(path) = db::sqlite_filesystem_path(&config.database_url) {
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            if !parent.as_os_str().is_empty() {
+                tokio::fs::create_dir_all(parent).await.with_context(|| {
+                    format!("failed to create database parent dir {}", parent.display())
+                })?;
+            }
         }
     }
 

@@ -43,15 +43,11 @@ pub struct TicketConvertForm {
     pub film_iso: Option<String>,
 }
 
-pub async fn load_user_ticket_lists(
-    pool: &SqlitePool,
-    user_id: i64,
-) -> (Vec<Ticket>, Vec<Ticket>) {
+pub async fn load_user_ticket_lists(pool: &SqlitePool, user_id: i64) -> (Vec<Ticket>, Vec<Ticket>) {
     let all = db::list_tickets_for_user(pool, user_id)
         .await
         .unwrap_or_default();
-    all.into_iter()
-        .partition(|t| t.completed_before(7))
+    all.into_iter().partition(|t| t.completed_before(7))
 }
 
 async fn load_ticket_list_context(
@@ -114,12 +110,7 @@ pub async fn save_ticket_gear(
     };
 
     match db::update_ticket_gear_for_user(
-        &state.db,
-        ticket_id,
-        user.0.id,
-        camera_id,
-        lens_id,
-        film_iso,
+        &state.db, ticket_id, user.0.id, camera_id, lens_id, film_iso,
     )
     .await
     {
@@ -254,9 +245,5 @@ pub async fn convert_ticket_to_ingest(
 }
 
 fn html_error(status: StatusCode, message: &str) -> Response {
-    (
-        status,
-        Html(format!(r#"<p class="error">{message}</p>"#)),
-    )
-        .into_response()
+    (status, Html(format!(r#"<p class="error">{message}</p>"#))).into_response()
 }

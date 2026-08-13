@@ -13,13 +13,7 @@ use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, SessionManagerLayer, cookie::Key};
 use tower_sessions_sqlx_store::SqliteStore;
 
-use crate::{
-    auth::discord::oauth_client,
-    config::Config,
-    db,
-    handlers,
-    state::AppState,
-};
+use crate::{auth::discord::oauth_client, config::Config, db, handlers, state::AppState};
 
 #[cfg(test)]
 async fn test_set_user_session(
@@ -44,11 +38,7 @@ async fn test_discord_login_gate(
     let allowed = match db::is_discord_allowlisted(&state.db, &discord_id).await {
         Ok(v) => v,
         Err(_) => {
-            return (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "db error",
-            )
-                .into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
         }
     };
     if !allowed {
@@ -57,11 +47,7 @@ async fn test_discord_login_gate(
     let user = match db::upsert_discord_user(&state.db, &discord_id, "test-user").await {
         Ok(u) => u,
         Err(_) => {
-            return (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "db error",
-            )
-                .into_response();
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "db error").into_response();
         }
     };
     let _ = session
@@ -71,7 +57,11 @@ async fn test_discord_login_gate(
 }
 
 /// Build the full site router (routes + session layer + static files).
-pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsRef<std::path::Path>) -> Router {
+pub fn build_router(
+    state: AppState,
+    session_secret: &[u8],
+    static_dir: impl AsRef<std::path::Path>,
+) -> Router {
     let session_store = SqliteStore::new(state.db.clone());
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false)
@@ -94,10 +84,7 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
         .route("/admin/login", post(handlers::pages::admin_login_submit))
         .route("/admin/logout", post(handlers::pages::admin_logout))
         .route("/admin", get(handlers::pages::admin_dashboard))
-        .route(
-            "/admin/allowlist",
-            post(handlers::allowlist::add_allowlist),
-        )
+        .route("/admin/allowlist", post(handlers::allowlist::add_allowlist))
         .route(
             "/admin/allowlist/:discord_id",
             delete(handlers::allowlist::delete_allowlist),
@@ -110,10 +97,7 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
             "/admin/tickets/refresh",
             post(handlers::api::refresh_tickets),
         )
-        .route(
-            "/admin/tickets",
-            delete(handlers::api::delete_all_tickets),
-        )
+        .route("/admin/tickets", delete(handlers::api::delete_all_tickets))
         .route(
             "/admin/tickets/simulate",
             post(handlers::api::simulate_ticket),
@@ -124,17 +108,20 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
             delete(handlers::gear::delete_camera),
         )
         .route("/api/gear/lenses", post(handlers::gear::create_lens))
-        .route(
-            "/api/gear/lenses/:id",
-            delete(handlers::gear::delete_lens),
-        )
+        .route("/api/gear/lenses/:id", delete(handlers::gear::delete_lens))
         .route("/api/me", get(handlers::api::me))
         .route("/api/dm/me", post(handlers::api::dm_me))
         .route("/api/order/check", post(handlers::api::check_order))
         .route("/api/tickets", post(handlers::api::create_ticket_manual))
         .route("/api/tickets/:id", delete(handlers::api::delete_my_ticket))
-        .route("/api/tickets/:id/label", post(handlers::api::rename_my_ticket))
-        .route("/api/tickets/:id/gear", post(handlers::tickets::save_ticket_gear))
+        .route(
+            "/api/tickets/:id/label",
+            post(handlers::api::rename_my_ticket),
+        )
+        .route(
+            "/api/tickets/:id/gear",
+            post(handlers::tickets::save_ticket_gear),
+        )
         .route(
             "/api/tickets/:id/convert",
             post(handlers::tickets::convert_ticket_to_ingest),
@@ -177,10 +164,7 @@ pub fn build_router(state: AppState, session_secret: &[u8], static_dir: impl AsR
 
     #[cfg(test)]
     let router = router
-        .route(
-            "/__test/session/:user_id",
-            post(test_set_user_session),
-        )
+        .route("/__test/session/:user_id", post(test_set_user_session))
         .route(
             "/__test/discord_login/:discord_id",
             post(test_discord_login_gate),
@@ -255,15 +239,9 @@ pub mod test_support {
             .await
             .expect("find user")
             .expect("user exists");
-        db::upsert_discord_allowlist(
-            pool,
-            &user.discord_id,
-            Some(&user.username),
-            false,
-            "test",
-        )
-        .await
-        .expect("allowlist test user");
+        db::upsert_discord_allowlist(pool, &user.discord_id, Some(&user.username), false, "test")
+            .await
+            .expect("allowlist test user");
 
         let res = app
             .clone()
@@ -321,7 +299,9 @@ pub mod test_support {
             .await
             .expect("init_pool");
         let secret = config.session_secret.clone();
-        let state = build_state(config.clone(), pool.clone()).await.expect("state");
+        let state = build_state(config.clone(), pool.clone())
+            .await
+            .expect("state");
         let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
         let app = build_router(state, &secret, static_dir);
         (dir, app, config, pool)

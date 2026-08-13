@@ -1,25 +1,29 @@
-# Deploy from this directory. Only config needed: a filled `.env` (see `.env.example`).
+# Env-based deploy (no secrets in git). Prefer compose.yaml for homelab with inlined env.
 #
-#   cp .env.example .env   # edit secrets + image
+#   cp .env.example .env   # set DISCORD_REDIRECT_URI to your public https URL
 #   docker login dm-registry.olivers-homelab2.cc
 #   docker compose up -d
 #
-# Data (SQLite + ingest scratch) lives in ./data next to this file.
+# Public site example: https://upload-fotos.olivers-homelab2.cc/
+# TLS terminates at the reverse proxy → this service on :8080.
+
+version: "3.8"
 
 services:
   app:
-    image: ${DOCKER_IMAGE:-dm-registry.olivers-homelab2.cc/dm-photo-website:latest}
+    image: ${DOCKER_IMAGE:-dm-registry.olivers-homelab2.cc/dm-photo-website:v0.3.1}
+    container_name: dm-website
     env_file:
       - .env
     environment:
       SERVER_ADDR: ${SERVER_ADDR:-0.0.0.0:8080}
-      DATABASE_URL: ${DATABASE_URL:-sqlite://data/app.db}
-      ANALOG_INGEST_DIR: ${ANALOG_INGEST_DIR:-data/ingest}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:/app/data/app.db}
+      ANALOG_INGEST_DIR: ${ANALOG_INGEST_DIR:-/app/data/ingest}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
-      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:?set DISCORD_REDIRECT_URI to https://your.host/auth/discord/callback}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
       DM_MESSAGE: ${DM_MESSAGE:-}
       DM_KEY_ACCOUNT_ID: ${DM_KEY_ACCOUNT_ID:-1320}
@@ -32,7 +36,10 @@ services:
       PHOTOPRISM_DEFAULT_ALBUM: ${PHOTOPRISM_DEFAULT_ALBUM:-}
       PHOTOPRISM_VERIFY_TLS: ${PHOTOPRISM_VERIFY_TLS:-true}
     volumes:
-      - ./data:/app/data
+      - app_data:/app/data
     ports:
       - "${HOST_PORT:-8080}:8080"
     restart: unless-stopped
+
+volumes:
+  app_data:
