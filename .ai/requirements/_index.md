@@ -19,7 +19,8 @@ Open by **REQ id** — do not dump this folder into context. See [`README.md`](R
 | REQ-013 | JFrog server checklist (ops-owned) | planned | [REQ-013-jfrog-server.md](REQ-013-jfrog-server.md) |
 | REQ-014 | Frontend redesign (capability-preserving) | planned | [REQ-014-frontend-redesign.md](REQ-014-frontend-redesign.md) |
 | REQ-015 | Discord allowlist + gated admin + Compose defaults | accepted | [REQ-015-discord-allowlist-admin.md](REQ-015-discord-allowlist-admin.md) |
+| REQ-016 | GitHub CI + Rust coverage (frontend = system tests) | accepted | [REQ-016-ci-coverage.md](REQ-016-ci-coverage.md) |
 
 **UI contract (not a REQ):** [`.ai/FRONTEND-SURFACE.md`](../FRONTEND-SURFACE.md) — all form fields, HTMX targets, statuses. Read before REQ-014.
 
-Accepted REQs list automated **Tests** (`T-*`). Keep them green with `cargo test` (also run in the Docker builder stage).
+Accepted REQs list automated **Tests** (`T-*`). Keep them green with `cargo test` (also run in the Docker builder stage and in GitHub Actions, REQ-016).

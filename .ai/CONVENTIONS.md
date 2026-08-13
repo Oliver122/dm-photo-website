@@ -36,6 +36,7 @@
 - Every `REQ-*.md` **Tests** section lists required cases (`T-<req>-…`); keep them green.
 - Run: `cargo test` and `cargo check` before finishing non-trivial changes.
 - Docker image build runs `cargo test` in the builder stage before `cargo build --release`.
+- GitHub Actions (`.github/workflows/ci.yml`) runs `cargo test` then `cargo llvm-cov` on pull requests and pushes to `main`. Frontend coverage is the HTTP system tests (`src/system_tests.rs`).
 
 ## Docs sync
 

@@ -14,7 +14,7 @@ stored in `.env`.
 
 ## Quick start
 
-1. Install the Rust toolchain (1.94+).
+1. Install the Rust toolchain (1.94+; `rust-toolchain.toml` pins 1.94).
 2. Create a Discord application at <https://discord.com/developers/applications>,
    add a redirect URL matching `DISCORD_REDIRECT_URI` (default
    `http://localhost:8080/auth/discord/callback`) and copy the **Client ID** and
@@ -36,6 +36,13 @@ stored in `.env`.
    The server listens on `SERVER_ADDR` (default `127.0.0.1:8080`). The SQLite
    database lives at `data/app.db` and is created on first start via migrations
    embedded in the binary.
+
+## CI
+
+Pull requests and pushes to `main` run GitHub Actions job `test`: `cargo test`, then
+`cargo llvm-cov` (LCOV + HTML artifacts and a PR summary). HTTP system tests
+(`src/system_tests.rs`) are the frontend coverage track. The Docker image build
+still runs `cargo test` as the release gate.
 
 ## Docker deploy
 

@@ -18,8 +18,9 @@
 
 | Item | Value |
 |------|--------|
-| Language | Rust (edition 2024), toolchain 1.94+ |
+| Language | Rust (edition 2024), toolchain 1.94+ (`rust-toolchain.toml`) |
 | Web | Axum + Askama + HTMX |
+| CI | GitHub Actions `cargo test` + `cargo llvm-cov` (REQ-016); frontend = HTTP system tests |
 | DB | SQLite via SQLx, migrations in `migrations/` |
 | Auth | Discord OAuth (allowlist, snowflake ID) + admin gate (`ADMIN_PASSWORD` session flag or allowlist `is_admin`; Discord session required first) |
 | External APIs | Discord OAuth/Bot API, dm Foto `spot.photoprintit.com`, dm analog download (CEWE `api.cewe-myphotos.com`), PhotoPrism `/api/v1` (REQ-005) |
